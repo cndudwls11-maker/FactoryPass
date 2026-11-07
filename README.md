@@ -7,7 +7,7 @@ QR 코드 기반 단일 회사 스마트 공장 근태관리 서비스입니다.
 - `/`, `/login`, `/signup`, `/signup-complete` (`/pending`는 이전 북마크용으로 로그인 화면으로 이동)
 - `/admin`, `/admin/employees`, `/admin/scanner`, `/admin/attendance`, `/admin/schedules`, `/admin/statistics`, `/admin/settings`
 - `/employee`, `/employee/attendance`, `/employee/profile`
-- 로그인 공통 처리와 서버 측 역할/계정 상태 검증, HttpOnly 세션 쿠키, CSRF 토큰, PBKDF2-SHA256 비밀번호 해시
+- 로그인 공통 처리와 서버 측 역할/계정 상태 검증, HttpOnly 세션 쿠키, CSRF 토큰, Cloudflare Workers 호환 PBKDF2-SHA256 비밀번호 해시(100,000회)
 - 근로자 즉시 활성 가입, 관리자 직원 계정 비활성화/재활성화, 매일 직원별 랜덤 QR 토큰, QR 스캔 출퇴근 기록, D1 기반 조회/통계/CSV, 기록 수정 이력
 - 카메라 기반 QR 스캔(html5-qrcode), QR 표시(qrcodejs), 그래프(Chart.js)
 - 반응형 PC/태블릿/모바일 UI
@@ -43,7 +43,7 @@ Remove-Variable initSecret,adminPassword,plain,body
 
 ## 보안·기능 참고
 
-- 비밀번호는 PBKDF2-HMAC-SHA256 310,000회로 해시되며 세션 ID는 HttpOnly/Secure/SameSite=Strict 쿠키에만 보관합니다. API는 서버 역할과 계정 상태를 검사합니다.
+- 신규 비밀번호는 PBKDF2-HMAC-SHA256 100,000회와 128-bit 무작위 salt로 해시되며 저장 형식은 `pbkdf2$반복횟수$salt$digest`입니다. 검증은 저장된 반복 횟수를 사용하고 Cloudflare WebCrypto의 100,000회 상한을 넘는 기존 해시는 안전하게 거절해 비밀번호 재설정이 필요하다고 안내합니다. 기존 `pbkdf2$310000$...` 계정은 자동 변환할 수 없습니다. 기존 해시의 검증에 원래 비밀번호가 필요하지만 런타임이 그 반복 횟수를 거부하기 때문입니다. 해당 계정은 운영자가 별도의 본인 확인 절차로 비밀번호 재설정/초기화해야 합니다. 세션 ID는 HttpOnly/Secure/SameSite=Strict 쿠키에만 보관하며 API는 서버 역할과 계정 상태를 검사합니다.
 - 가입과 QR 모두 개인정보 대신 난수/해시 토큰을 씁니다. 동일 직원·근무일 출석 행과 토큰 행에 DB uniqueness 제약을 적용합니다. 하루 QR은 한국 날짜 자정 만료이며 화면 조회 시 재발급되어 이전 토큰을 폐기합니다.
 - 근로자 QR은 해당 근무일에 유효하고, 지금 구현은 일일 고정 토큰입니다. 짧은 주기 동적 회전은 UI 안내만 있는 확장 포인트이며 아직 구현되지 않았습니다. 대리 출퇴근 방지를 위해 실제 도입 전 생체 확인/현장 키오스크 등 추가 수단 검토가 필요합니다.
 - 야간 시간대를 일정으로 지원하고 다음 날짜 퇴근 예정 시각을 계산합니다. 스케줄의 휴무 요일 및 휴무일을 체크하며, 과거 일정 종료 후 기록이 없는 사람은 조회 결과에서 결근으로 분류합니다. 아직 정기적인 자동 결근 레코드 생성 작업은 없습니다.

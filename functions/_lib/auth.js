@@ -1,6 +1,10 @@
 const enc=new TextEncoder();
-export async function hashPassword(password,saltHex){const salt=saltHex?fromHex(saltHex):crypto.getRandomValues(new Uint8Array(16));const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:310000},key,256);return `pbkdf2$310000$${toHex(salt)}$${toHex(new Uint8Array(bits))}`}
-export async function verifyPassword(password,stored){const [algo,iterations,salt,expected]=String(stored||'').split('$');if(algo!=='pbkdf2')return false;const actual=await hashPassword(password,salt);return constantTime(actual.split('$')[3],expected)}
+const PBKDF2_ITERATIONS=100000;
+const PBKDF2_MAX_VERIFY_ITERATIONS=100000;
+export class PasswordHashCompatibilityError extends Error{constructor(){super('이 계정의 기존 비밀번호 해시가 현재 Cloudflare 런타임에서 지원되지 않습니다. 비밀번호 재설정이 필요합니다.');this.name='PasswordHashCompatibilityError'}}
+async function derivePassword(password,salt,iterations){const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations},key,256);return new Uint8Array(bits)}
+export async function hashPassword(password){const salt=crypto.getRandomValues(new Uint8Array(16));const digest=await derivePassword(password,salt,PBKDF2_ITERATIONS);return `pbkdf2$${PBKDF2_ITERATIONS}$${toHex(salt)}$${toHex(digest)}`}
+export async function verifyPassword(password,stored){const parts=String(stored||'').split('$');if(parts.length!==4)return false;const [algo,iterationText,saltHex,expected]=parts;if(algo!=='pbkdf2'||!/^[\da-f]{32}$/i.test(saltHex)||!/^[\da-f]{64}$/i.test(expected))return false;const iterations=Number(iterationText);if(!Number.isSafeInteger(iterations)||iterations<1)throw new PasswordHashCompatibilityError();if(iterations>PBKDF2_MAX_VERIFY_ITERATIONS)throw new PasswordHashCompatibilityError();const actual=toHex(await derivePassword(password,fromHex(saltHex),iterations));return constantTime(actual,expected)}
 function toHex(bytes){return [...bytes].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function fromHex(hex){return new Uint8Array((hex.match(/.{2}/g)||[]).map(x=>parseInt(x,16)))}
 function constantTime(a,b){if(!a||!b||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0}
