@@ -1,0 +1,17 @@
+const enc=new TextEncoder();
+export async function hashPassword(password,saltHex){const salt=saltHex?fromHex(saltHex):crypto.getRandomValues(new Uint8Array(16));const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:310000},key,256);return `pbkdf2$310000$${toHex(salt)}$${toHex(new Uint8Array(bits))}`}
+export async function verifyPassword(password,stored){const [algo,iterations,salt,expected]=String(stored||'').split('$');if(algo!=='pbkdf2')return false;const actual=await hashPassword(password,salt);return constantTime(actual.split('$')[3],expected)}
+function toHex(bytes){return [...bytes].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function fromHex(hex){return new Uint8Array((hex.match(/.{2}/g)||[]).map(x=>parseInt(x,16)))}
+function constantTime(a,b){if(!a||!b||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0}
+export async function digest(value){const h=await crypto.subtle.digest('SHA-256',enc.encode(value));return toHex(new Uint8Array(h))}
+export async function randomToken(size=32){return toHex(crypto.getRandomValues(new Uint8Array(size)))}
+export function cookieValue(request,name){const line=request.headers.get('Cookie')||'';for(const pair of line.split(';')){const [key,...v]=pair.trim().split('=');if(key===name)return decodeURIComponent(v.join('='))}return null}
+export async function currentUser(request,env){const sid=cookieValue(request,'fp_session');if(!sid)return null;const q=await env.DB.prepare(`SELECT u.id,u.role,u.name,u.employee_no,u.department,u.email,u.username,u.status,s.csrf_token FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=? AND s.expires_at>?`).bind(sid,new Date().toISOString()).first();return q||null}
+export async function requireRole(request,env,role){const user=await currentUser(request,env);if(!user)throw new HttpError(401,'로그인이 필요합니다.');if(user.status==='disabled'||user.status==='rejected')throw new HttpError(403,'사용할 수 없는 계정입니다.');if(user.status==='pending')throw new HttpError(403,'관리자 승인 대기 중입니다.');if(role&&user.role!==role)throw new HttpError(403,'접근 권한이 없습니다.');return user}
+export class HttpError extends Error{constructor(status,message){super(message);this.status=status}}
+export function json(data,status=200,headers={}){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin',...headers}})}
+export async function bodyJson(request){try{return await request.json()}catch{throw new HttpError(400,'요청 형식이 올바르지 않습니다.')}}
+export function assertCsrf(request,user){if(['GET','HEAD','OPTIONS'].includes(request.method))return;const token=request.headers.get('X-CSRF-Token');if(!token||token!==user.csrf_token)throw new HttpError(403,'보안 토큰이 유효하지 않습니다. 페이지를 새로고침해 주세요.')}
+export function setSessionCookie(id,days=7){return `fp_session=${encodeURIComponent(id)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${days*86400}`}
+export const clearSessionCookie='fp_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0';
