@@ -1,0 +1,14 @@
+# Local Cline application/runtime files (not FactoryPass project assets)
+/.wrangler/
+/bin/
+/icons/
+/cline-app.exe
+/cline-cli.exe
+/uninstall.exe
+
+# Local Wrangler state and secrets
+.dev.vars
+.env
+.env.*
+!.env.example
+.wrangler/

@@ -1,68 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#f5f7fb">
-  <meta name="description" content="생산, 품질, 재고를 한곳에서 관리하는 SmartFlow ERP">
-  <title>SmartFlow ERP — 스마트 생산관리</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f9fc"><meta name="description" content="QR코드 하나로 완성하는 스마트 공장 근태관리, FactoryPass">
+  <title>FactoryPass — 스마트 근태관리</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <a class="brand" href="#dashboard" aria-label="SmartFlow ERP 홈">
-        <span class="brand-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9l4 3V7l5 4V4h7v15H4Z"/><path d="M8 19v-4m4 4v-4m4 4v-4"/></svg></span>
-        <span class="brand-copy"><strong>SmartFlow</strong><small>MANUFACTURING ERP</small></span>
-      </a>
-      <div class="workspace-card"><span class="workspace-avatar">S</span><span class="workspace-info"><strong>내 작업 공간</strong><small>스마트 생산관리</small></span><span class="workspace-chevron">⌄</span></div>
-      <div class="nav-label">WORKSPACE</div>
-      <nav class="main-nav" aria-label="주 메뉴">
-        <button class="nav-item active" data-page="dashboard"><span class="nav-icon">▦</span><span>통합 대시보드</span></button>
-        <button class="nav-item" data-page="items"><span class="nav-icon">▤</span><span>품목 관리</span></button>
-        <button class="nav-item" data-page="plans"><span class="nav-icon">▣</span><span>생산계획</span></button>
-        <button class="nav-item" data-page="production"><span class="nav-icon">◷</span><span>생산실적</span></button>
-        <button class="nav-item" data-page="quality"><span class="nav-icon">✓</span><span>품질관리</span></button>
-        <button class="nav-item" data-page="inventory"><span class="nav-icon">▥</span><span>재고관리</span></button>
-        <button class="nav-item" data-page="analytics"><span class="nav-icon">⌁</span><span>통계 및 분석</span></button>
-      </nav>
-      <div class="sidebar-bottom"><div class="storage-note"><span class="storage-dot"></span><div><strong>안전하게 저장 중</strong><small>이 브라우저에 데이터 저장</small></div></div><button class="nav-item settings-link" id="export-data"><span class="nav-icon">⇩</span><span>데이터 백업</span></button></div>
-    </aside>
-
-    <main class="main-content">
-      <header class="topbar"><button class="mobile-menu" id="mobile-menu" aria-label="메뉴 열기">☰</button><div class="breadcrumb"><span>SmartFlow ERP</span><span class="crumb-separator">/</span><strong id="breadcrumb-current">통합 대시보드</strong></div><div class="topbar-actions"><span class="today-label" id="today-label"></span><button class="icon-button" id="reset-demo" title="샘플 데이터로 초기화" aria-label="샘플 데이터로 초기화">↻</button><div class="user-avatar" title="내 계정">나</div></div></header>
-
-      <section class="page-view active" id="page-dashboard">
-        <div class="page-heading"><div><div class="eyebrow">OVERVIEW</div><h1>통합 대시보드</h1><p>오늘의 생산 현황과 운영 지표를 한눈에 확인하세요.</p></div><button class="button button-primary" data-open-modal="production">＋ 생산실적 등록</button></div>
-        <div class="stats-grid" id="dashboard-stats"></div>
-        <div class="dashboard-grid">
-          <article class="panel production-panel"><div class="panel-heading"><div><h2>주간 생산 현황</h2><p>계획 대비 실제 생산량</p></div><span class="period-chip">최근 7일 <span>⌄</span></span></div><div class="chart-legend"><span><i class="legend-dot plan-dot"></i>계획 수량</span><span><i class="legend-dot actual-dot"></i>실제 생산</span></div><div class="production-chart" id="production-chart"></div></article>
-          <article class="panel quality-panel"><div class="panel-heading"><div><h2>품질 현황</h2><p>검사 합격률</p></div><button class="text-button" data-navigate="quality">검사 내역 →</button></div><div id="quality-chart" class="quality-chart"></div><div class="quality-legend" id="quality-legend"></div></article>
-          <article class="panel recent-panel"><div class="panel-heading"><div><h2>최근 생산실적</h2><p>최신 등록된 생산 기록입니다.</p></div><button class="text-button" data-navigate="production">전체보기 →</button></div><div class="table-wrap"><table><thead><tr><th>품목</th><th>생산일</th><th>생산량</th><th>달성률</th></tr></thead><tbody id="recent-production"></tbody></table></div></article>
-          <article class="panel inventory-panel"><div class="panel-heading"><div><h2>재고 현황</h2><p>품목별 현재고 및 안전재고</p></div><button class="text-button" data-navigate="inventory">재고 관리 →</button></div><div id="inventory-overview" class="inventory-overview"></div></article>
-        </div>
-      </section>
-
-      <section class="page-view" id="page-items"><div class="page-heading"><div><div class="eyebrow">MASTER DATA</div><h1>품목 관리</h1><p>생산에 사용하는 품목과 기준정보를 관리합니다.</p></div><button class="button button-primary" data-open-modal="item">＋ 품목 등록</button></div><div class="panel table-panel"><div class="table-toolbar"><div class="search-box"><span>⌕</span><input data-search="items" placeholder="품목명 또는 품목코드 검색"></div><span class="table-count" id="items-count"></span></div><div class="table-wrap"><table><thead><tr><th>품목코드</th><th>품목명</th><th>규격</th><th>단위</th><th>안전재고</th><th>현재고</th><th>관리</th></tr></thead><tbody id="items-table"></tbody></table></div></div></section>
-
-      <section class="page-view" id="page-plans"><div class="page-heading"><div><div class="eyebrow">PRODUCTION</div><h1>생산계획</h1><p>생산 일정과 목표 수량을 계획하고 관리합니다.</p></div><button class="button button-primary" data-open-modal="plan">＋ 계획 등록</button></div><div class="panel table-panel"><div class="table-toolbar"><div class="search-box"><span>⌕</span><input data-search="plans" placeholder="품목명 또는 계획번호 검색"></div><span class="table-count" id="plans-count"></span></div><div class="table-wrap"><table><thead><tr><th>계획번호</th><th>생산일</th><th>품목</th><th>목표 수량</th><th>실제 생산</th><th>달성률</th><th>상태</th><th>관리</th></tr></thead><tbody id="plans-table"></tbody></table></div></div></section>
-
-      <section class="page-view" id="page-production"><div class="page-heading"><div><div class="eyebrow">PRODUCTION</div><h1>생산실적</h1><p>실제 생산 수량과 LOT 정보를 기록합니다.</p></div><button class="button button-primary" data-open-modal="production">＋ 실적 등록</button></div><div class="panel table-panel"><div class="table-toolbar"><div class="search-box"><span>⌕</span><input data-search="production" placeholder="품목명, LOT 번호 또는 계획번호 검색"></div><span class="table-count" id="production-count"></span></div><div class="table-wrap"><table><thead><tr><th>생산일</th><th>품목</th><th>계획번호</th><th>LOT 번호</th><th>생산 수량</th><th>달성률</th><th>관리</th></tr></thead><tbody id="production-table"></tbody></table></div></div></section>
-
-      <section class="page-view" id="page-quality"><div class="page-heading"><div><div class="eyebrow">QUALITY CONTROL</div><h1>품질관리</h1><p>검사 기준을 설정하고 품질 검사 결과를 기록합니다.</p></div><button class="button button-primary" data-open-modal="quality">＋ 검사 등록</button></div><div class="quality-summary" id="quality-summary"></div><div class="panel table-panel"><div class="table-toolbar"><div class="search-box"><span>⌕</span><input data-search="quality" placeholder="품목명, LOT 번호 또는 불량 유형 검색"></div><span class="table-count" id="quality-count"></span></div><div class="table-wrap"><table><thead><tr><th>검사일</th><th>품목</th><th>LOT 번호</th><th>검사 항목</th><th>검사 수량</th><th>불량 수량</th><th>불량 유형</th><th>판정</th><th>관리</th></tr></thead><tbody id="quality-table"></tbody></table></div></div></section>
-
-      <section class="page-view" id="page-inventory"><div class="page-heading"><div><div class="eyebrow">INVENTORY</div><h1>재고관리</h1><p>검사 합격 제품의 입고 및 출고를 관리합니다.</p></div><button class="button button-primary" data-open-modal="stock">＋ 입출고 등록</button></div><div class="inventory-summary" id="inventory-summary"></div><div class="panel table-panel"><div class="table-toolbar"><div class="search-box"><span>⌕</span><input data-search="inventory" placeholder="품목명 또는 품목코드 검색"></div><span class="table-count" id="inventory-count"></span></div><div class="table-wrap"><table><thead><tr><th>품목코드</th><th>품목명</th><th>현재고</th><th>안전재고</th><th>재고 상태</th><th>최근 입고</th><th>최근 출고</th><th>관리</th></tr></thead><tbody id="inventory-table"></tbody></table></div></div><div class="panel movement-panel"><div class="panel-heading"><div><h2>최근 재고 변동</h2><p>입고 및 출고 처리 내역</p></div></div><div class="table-wrap"><table><thead><tr><th>처리일</th><th>품목</th><th>유형</th><th>수량</th><th>LOT 번호</th><th>메모</th></tr></thead><tbody id="movements-table"></tbody></table></div></div></section>
-
-      <section class="page-view" id="page-analytics"><div class="page-heading"><div><div class="eyebrow">INSIGHTS</div><h1>통계 및 분석</h1><p>입력된 데이터를 바탕으로 생산과 품질 성과를 분석합니다.</p></div><button class="button button-secondary" id="analytics-export">⇩ CSV 내보내기</button></div><div class="stats-grid analytics-stats" id="analytics-stats"></div><div class="dashboard-grid analytics-grid"><article class="panel production-panel"><div class="panel-heading"><div><h2>월간 생산량</h2><p>최근 6개월 실제 생산 추이</p></div></div><div class="production-chart" id="monthly-chart"></div></article><article class="panel"><div class="panel-heading"><div><h2>품목별 생산량</h2><p>전체 누적 생산실적 기준</p></div></div><div id="item-ranking" class="item-ranking"></div></article><article class="panel"><div class="panel-heading"><div><h2>불량 유형 분석</h2><p>등록된 불량 유형별 건수</p></div></div><div id="defect-ranking" class="defect-ranking"></div></article><article class="panel"><div class="panel-heading"><div><h2>생산계획 달성 현황</h2><p>계획 완료 및 진행 상태</p></div></div><div id="plan-status" class="plan-status"></div></article></div></section>
-      <footer class="app-footer">© 2025 SmartFlow ERP <span>생산의 흐름을 더 스마트하게</span></footer>
-    </main>
-  </div>
-
-  <div class="modal-backdrop" id="modal-backdrop" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-heading"><div><div class="eyebrow">DATA MANAGEMENT</div><h2 id="modal-title">새 항목 등록</h2></div><button class="modal-close" id="modal-close" aria-label="닫기">×</button></div><form id="record-form"><div class="modal-body" id="modal-fields"></div><div class="modal-actions"><button type="button" class="button button-secondary" id="modal-cancel">취소</button><button type="submit" class="button button-primary">저장하기</button></div></form></section></div>
-  <div class="toast" id="toast" role="status"></div>
-  <script src="app.js"></script>
-</body>
-</html>
+<body><div id="app"><div class="boot"><span class="brand-mark">F</span> FactoryPass 불러오는 중…</div></div><div id="toast" class="toast" role="status"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script><script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" defer></script><script src="app.js" defer></script></body></html>
