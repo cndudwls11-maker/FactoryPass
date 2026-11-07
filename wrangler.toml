@@ -5,7 +5,7 @@ pages_build_output_dir = "."
 [[d1_databases]]
 binding = "DB"
 database_name = "factorypass-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "7baf97be-a716-4938-b95d-8b4434df4fff"
 migrations_dir = "migrations"
 
 [vars]

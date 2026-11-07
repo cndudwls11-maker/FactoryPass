@@ -15,11 +15,12 @@ QR 코드 기반 단일 회사 스마트 공장 근태관리 서비스입니다.
 ## Cloudflare 배포 준비
 
 1. Node.js LTS 및 Wrangler를 준비합니다. 프로젝트 폴더에서 `npm install -g wrangler` 후 `wrangler login`을 실행합니다.
-2. D1 DB를 생성합니다: `wrangler d1 create factorypass-db`. 출력된 database ID를 `wrangler.toml`의 `database_id`에 입력하세요. 이 파일의 `REPLACE_WITH_D1_DATABASE_ID`는 교체 전에는 유효한 배포 설정이 아닙니다.
-3. 스키마 적용: `wrangler d1 migrations apply factorypass-db --remote`. 로컬 테스트에는 `--local`을 사용합니다. `migrations/0001_initial.sql`이 실제 migration입니다. `schema.sql`은 참고용 전체 초기화 SQL입니다.
-4. 최초 관리자 생성용 강력한 일회용 비밀을 Cloudflare secret으로 등록합니다: `wrangler secret put INIT_ADMIN_SECRET`. 무작위 32바이트 이상의 값을 안전한 비밀 관리 도구로 생성하고 CLI 입력 프롬프트에만 붙여 넣으세요. 값은 코드/저장소에 입력하지 않습니다.
-5. `wrangler pages dev .`로 Pages Functions를 로컬 구동하거나 Cloudflare Pages 프로젝트에 저장소를 연결해 배포합니다. 정적 빌드 명령은 없으며 output directory는 프로젝트 루트(`.`)입니다. Cloudflare Dashboard에서도 D1 binding 이름을 정확히 `DB`로 연결해야 합니다. `_routes.json`은 `/api/*`만 Function에 보내고 정적 UI 경로는 Pages 정적 자산으로 처리합니다.
-6. HTTPS 배포 후 관리자 계정을 **한 번만** 초기 생성합니다. 브라우저 개발자 도구가 아닌 안전한 운영 터미널에서 아래 명령으로 비밀 입력을 읽어 초기 API에 전송하세요. 비밀번호와 초기 비밀을 명령 인자/셸 기록에 넣지 마세요.
+2. 기존 D1 데이터베이스 `factorypass-db`를 사용합니다. 설정에는 Database ID `7baf97be-a716-4938-b95d-8b4434df4fff`와 바인딩 `DB`가 지정되어 있습니다. 새 데이터베이스를 만들거나 기존 데이터베이스를 삭제하지 마세요.
+3. 스키마 적용/확인: `wrangler d1 migrations list factorypass-db --remote`로 상태를 조회한 뒤 `wrangler d1 migrations apply factorypass-db --remote`를 실행합니다. `0001_initial.sql`은 앱에서 필요한 테이블과 기본 설정을 생성하며 `0002_query_indexes.sql`은 조회 성능 인덱스를 추가합니다. 모두 비파괴적이고 기존 레코드를 삭제하지 않습니다. 이미 0001이 적용된 환경에는 0002만 적용됩니다. 로컬 테스트에는 `--local`을 사용합니다. `schema.sql`은 참고용 전체 스키마입니다.
+4. 최초 관리자 생성용 강력한 일회용 비밀을 Cloudflare Pages Functions secret으로 등록합니다: `wrangler pages secret put INIT_ADMIN_SECRET --project-name factorypass`. Pages 프로젝트 이름이 다르면 실제 이름을 사용하세요. 무작위 32바이트 이상의 값을 안전한 비밀 관리 도구로 생성하고 CLI 입력 프롬프트에만 붙여 넣으세요. 값은 코드/저장소에 입력하지 않습니다.
+5. Cloudflare Pages 프로젝트는 GitHub 저장소 `cndudwls11-maker/FactoryPass`의 `main` 브랜치에 연결하고, Framework preset은 None, Build command는 비워 두며 Build output directory는 `.` (저장소 루트)로 지정합니다. `wrangler.toml`의 `pages_build_output_dir = "."`도 정적 파일 출력 경로입니다. Functions는 저장소 루트의 `functions/`에서 배포됩니다. `_routes.json`은 `/api/*`만 Function에 보내고 나머지 정적 경로는 정적 자산으로 처리합니다.
+6. Cloudflare Dashboard의 Pages > Settings > Functions > D1 database bindings에서 **Production과 Preview 각각** 변수 이름 `DB`를 위 D1 데이터베이스에 연결하세요. 이름은 코드의 `env.DB`와 정확히 같아야 합니다. `APP_TIMEZONE=Asia/Seoul`은 wrangler 설정의 변수입니다. `INIT_ADMIN_SECRET`은 환경 변수로 공개하지 말고 Pages secret으로 설정합니다. Cloudflare Dashboard에서 직접 설정한 bindings/secrets가 배포 환경에 실제 연결됐는지 확인하세요.
+7. HTTPS 배포 후 관리자 계정을 **한 번만** 초기 생성합니다. 브라우저 개발자 도구가 아닌 안전한 운영 터미널에서 아래 명령으로 비밀 입력을 읽어 초기 API에 전송하세요. 비밀번호와 초기 비밀을 명령 인자/셸 기록에 넣지 마세요.
 
 ```powershell
 $initSecret = Read-Host 'INIT_ADMIN_SECRET'
@@ -32,11 +33,11 @@ Invoke-RestMethod -Method Post -Uri 'https://YOUR-PAGES-DOMAIN/api/admin/init' -
 Remove-Variable initSecret,adminPassword,plain,body
 ```
 
-`YOUR-PAGES-DOMAIN`을 실제 HTTPS 주소로 바꾸세요. 초기화 엔드포인트는 이미 admin이 존재하면 409로 거부합니다. 성공하면 `INIT_ADMIN_SECRET`을 Cloudflare에서 제거하거나 교체하고 안전하게 폐기하세요. 운영 셸/프로세스의 메모리·기록 보호는 조직 보안 정책에 따르세요.
+`YOUR-PAGES-DOMAIN`을 실제 HTTPS 주소로 바꾸세요. 초기화 엔드포인트는 이미 admin이 존재하면 409로 거부합니다. 성공하면 `INIT_ADMIN_SECRET`을 Cloudflare Pages secret에서 제거하거나 교체하고 안전하게 폐기하세요. 운영 셸/프로세스의 메모리·기록 보호는 조직 보안 정책에 따르세요.
 
 ## 개발/로컬 실행
 
-`wrangler.toml`의 D1 ID를 설정한 뒤 `wrangler d1 migrations apply factorypass-db --local` 및 `wrangler pages dev .`를 실행합니다. 카메라 API는 localhost 또는 HTTPS에서만 브라우저가 허용합니다. Wrangler/Cloudflare 계정 설정 없이는 브라우저에서 `index.html`만 열어 실제 로그인·저장·스캔이 되지 않습니다. D1 바인딩이 없을 경우 API는 503을 반환하며 UI에서 설정 안내를 보여줍니다.
+`FactoryPass/` 작업 폴더에서 `wrangler d1 migrations apply factorypass-db --local` 및 `wrangler pages dev . --d1 DB=factorypass-db`를 실행합니다. Pages 배포에서 실제 DB 연결은 Dashboard D1 binding으로 별도 검증하세요. 카메라 API는 localhost 또는 HTTPS에서만 브라우저가 허용합니다. Wrangler/Cloudflare 계정 설정 없이는 브라우저에서 `index.html`만 열어 실제 로그인·저장·스캔이 되지 않습니다. D1 바인딩이 없을 경우 API는 503을 반환하며 UI에서 설정 안내를 보여줍니다.
 
 가입은 일반 근로자 역할로만 생성되고 승인 대기 상태입니다. 관리자가 `/admin/employees`에서 승인해야 근로자 화면 및 QR 발급을 사용할 수 있습니다. 부서별 근무 일정을 쓰려면 먼저 환경설정에서 부서를 등록하세요.
 
