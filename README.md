@@ -6,7 +6,7 @@ QR 코드 기반 단일 회사 스마트 공장 근태관리 서비스입니다.
 
 - `/`, `/login`, `/signup`, `/signup-complete` (`/pending`는 이전 북마크용으로 로그인 화면으로 이동)
 - `/admin`, `/admin/employees`, `/admin/scanner`, `/admin/attendance`, `/admin/schedules`, `/admin/statistics`, `/admin/settings`
-- `/employee`, `/employee/attendance`, `/employee/profile`
+- `/employee`, `/employee/attendance`, `/employee/profile`, `/employee/verify`
 - 로그인 공통 처리와 서버 측 역할/계정 상태 검증, HttpOnly 세션 쿠키, CSRF 토큰, Cloudflare Workers 호환 PBKDF2-SHA256 비밀번호 해시(100,000회)
 - 근로자 즉시 활성 가입, 관리자 직원 계정 비활성화/재활성화, 매일 직원별 랜덤 QR 토큰, QR 스캔 출퇴근 기록, D1 기반 조회/통계/CSV, 기록 수정 이력
 - 카메라 기반 QR 스캔(html5-qrcode), QR 표시(qrcodejs), 그래프(Chart.js)
@@ -44,8 +44,9 @@ Remove-Variable initSecret,adminPassword,plain,body
 ## 보안·기능 참고
 
 - 신규 비밀번호는 PBKDF2-HMAC-SHA256 100,000회와 128-bit 무작위 salt로 해시되며 저장 형식은 `pbkdf2$반복횟수$salt$digest`입니다. 검증은 저장된 반복 횟수를 사용하고 Cloudflare WebCrypto의 100,000회 상한을 넘는 기존 해시는 안전하게 거절해 비밀번호 재설정이 필요하다고 안내합니다. 기존 `pbkdf2$310000$...` 계정은 자동 변환할 수 없습니다. 기존 해시의 검증에 원래 비밀번호가 필요하지만 런타임이 그 반복 횟수를 거부하기 때문입니다. 해당 계정은 운영자가 별도의 본인 확인 절차로 비밀번호 재설정/초기화해야 합니다. 세션 ID는 HttpOnly/Secure/SameSite=Strict 쿠키에만 보관하며 API는 서버 역할과 계정 상태를 검사합니다.
-- 가입과 QR 모두 개인정보 대신 난수/해시 토큰을 씁니다. 동일 직원·근무일 출석 행과 토큰 행에 DB uniqueness 제약을 적용합니다. 하루 QR은 한국 날짜 자정 만료이며 화면 조회 시 재발급되어 이전 토큰을 폐기합니다.
-- 근로자 QR은 해당 근무일에 유효하고, 지금 구현은 일일 고정 토큰입니다. 짧은 주기 동적 회전은 UI 안내만 있는 확장 포인트이며 아직 구현되지 않았습니다. 대리 출퇴근 방지를 위해 실제 도입 전 생체 확인/현장 키오스크 등 추가 수단 검토가 필요합니다.
+- 근로자 대시보드의 QR 발급 버튼은 근무일과 무관하게 60초 유효한 무작위 토큰을 발급합니다. QR에는 HTTPS `/employee/verify` 주소의 fragment에 토큰을 넣어 서버 URL/access log에 토큰이 전달되지 않게 합니다. D1에는 토큰 해시만 저장하며 재발급하면 기존 일일 토큰 hash를 대체합니다.
+- `/employee/verify`는 로그인 세션의 실제 근로자 ID와 QR 발급 소유자를 서버에서 비교하고 인증 미리보기만 표시합니다. 비로그인 사용자는 hash token을 `sessionStorage`에 보관해 로그인 후 안전하게 원래 URL로 돌아오며, 외부 return URL은 허용하지 않습니다. 현재 단계에서는 출퇴근 이벤트나 `attendance_records`를 새로 쓰지 않으며, 버튼 확인은 화면 표시만 합니다. 실제 출퇴근 저장은 후속 개발 대상입니다.
+- QR 토큰 유효기간은 `personal_qr_ttl_seconds` 설정이 없으면 60초 기본값입니다. D1 schema/migration 변경 없이 기존 `qr_tokens` 테이블의 직원·근무일 행을 재발급에 재사용합니다. 실제 운영에서는 스마트폰 계정 보호, 짧은 유효시간, HTTPS, 사용자 교육을 함께 적용하고, 추후 출퇴근 저장 전에 대리 인증 방지 정책을 검토하세요.
 - 야간 시간대를 일정으로 지원하고 다음 날짜 퇴근 예정 시각을 계산합니다. 스케줄의 휴무 요일 및 휴무일을 체크하며, 과거 일정 종료 후 기록이 없는 사람은 조회 결과에서 결근으로 분류합니다. 아직 정기적인 자동 결근 레코드 생성 작업은 없습니다.
 - 근태 수정은 사유, 수정자, 변경 전후 JSON을 `attendance_edit_logs`에 남깁니다. 사용자 접근 제한은 서버 API에서 강제합니다.
 - 웹 폰트·QR/차트 라이브러리는 외부 CDN에서 로드합니다. 오프라인 캐시/PWA, 비밀번호 재설정 메일, 개인정보·약관 실제 법무 문구, 조직별 근무 스케줄 달력 대량 편집, 자동 결근 배치 작업은 구현 범위 밖입니다.

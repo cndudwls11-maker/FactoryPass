@@ -66,8 +66,17 @@ test('Kiosk 화면은 실제 스캔 API를 추가하지 않은 범위 안내 화
  assert.doesNotMatch(kiosk,/\/api\/kiosk|USB HID|scanToken/);
 });
 
+test('모바일 QR 인증 페이지는 로그인 후 안전한 fragment 경로로 복귀하고 출퇴근 저장 API를 제공하지 않는다',()=>{
+ assert.match(app,/path==='\/employee\/verify'/);
+ assert.match(app,/sessionStorage\.setItem\('fp_pending_verify'/);
+ assert.match(app,/safeVerifyReturn/);
+ assert.match(app,/verifyUrl/);
+ assert.doesNotMatch(app,/\/employee\/qr\/confirm/);
+});
+
 test('이전 QR 스캐너 코드는 보존되고 직접 URL은 관리자 안내 화면을 사용한다',()=>{
  assert.match(app,/async function legacyCameraScanner\(/);
  assert.match(app,/function scanner\(v\)/);
- assert.match(app,/path==='\/admin\/scanner'\)scanner\(v\)/);
+ assert.match(app,/path==='\/admin\/scanner'/);
+ assert.match(app,/scanner\(v\)/);
 });
