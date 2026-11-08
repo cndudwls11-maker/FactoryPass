@@ -152,9 +152,10 @@ test('관리자만 공용 QR을 활성화·중지하고 비관리자 API는 차�
  assert.equal(initial.enabled,false);
  await assert.rejects(()=>issueSharedQr(ctx.env,admin,'https://factorypass.pages.dev'),error=>error.status===423);
  await setSharedQrEnabled(ctx.env,admin,true);
- const active=await issueSharedQr(ctx.env,admin,'https://factorypass.pages.dev');
+ const active=await issueSharedQr(ctx.env,admin,'https://factorypass.pages.dev',new Date('2026-11-09T00:00:00.000Z'));
  assert.match(active.verifyUrl,/\/employee\/verify#t=[a-f\d]{64}$/);
- assert.equal(Date.parse(active.expiresAt)-Date.parse(active.issuedAt),30000);
+ assert.equal(active.expiresAt,'2026-11-09T15:00:00.000Z');
+ assert.ok(active.rotationSeconds>0&&active.rotationSeconds<=86400);
  await setSharedQrEnabled(ctx.env,admin,false);
  await assert.rejects(()=>verifySharedQr(ctx.env,{id:2,role:'employee',status:'approved'},active.token),error=>error.status===423);
 });
@@ -184,11 +185,11 @@ test('같은 30초 QR을 직원 둘이 인증하고 각각 독립 이벤트를 �
  assert.equal((await ctx.env.DB.prepare('SELECT COUNT(*) n FROM attendance_events').first()).n,2);
 });
 
-test('QR 세션 만료, 60초 claim 만료, 운영 중지는 각각 거부된다',async()=>{
- const ctx=database(),admin={id:1,role:'admin',status:'approved'},user={id:2,role:'employee',name:'근로자 A',employee_no:'FP-A',department:'생산',status:'approved'},now=new Date('2026-11-09T00:00:00Z');
+test('QR 세션 날짜 만료, claim 유예시간 만료, 운영 중지는 각각 거부된다',async()=>{
+ const ctx=database(),admin={id:1,role:'admin',status:'approved'},user={id:2,role:'employee',name:'근로자 A',employee_no:'FP-A',department:'생산',status:'approved'},now=new Date('2026-11-09T14:00:00Z');
  await setSharedQrEnabled(ctx.env,admin,true,now);
  const qr=await issueSharedQr(ctx.env,admin,'https://factorypass.pages.dev',now);
- await assert.rejects(()=>verifySharedQr(ctx.env,user,qr.token,new Date(now.getTime()+30001)),error=>error.status===410);
+ await assert.rejects(()=>verifySharedQr(ctx.env,user,qr.token,new Date('2026-11-09T15:00:00.000Z')),error=>error.status===410);
  const claim=await verifySharedQr(ctx.env,user,qr.token,new Date(now.getTime()+1000));
  await assert.rejects(()=>confirmSharedAttendance(ctx.env,user,{claimId:claim.claimId,requestId:randomUUID()},new Date(now.getTime()+62000)),error=>error.status===410);
  const nextClaim=await verifySharedQr(ctx.env,user,qr.token,new Date(now.getTime()+2000));
@@ -220,6 +221,28 @@ test('이벤트 상태는 in/out/in/out 순환하고 자정 이후에도 마지�
  assert.notEqual(results[0].workDate,results[1].workDate);
 });
 
+test('same-day QR expires at midnight and cannot create attendance events on the next Seoul date',async()=>{
+ const ctx=database(),admin={id:1,role:'admin',status:'approved'},user={id:2,role:'employee',name:'근로자 A',employee_no:'FP-A',department:'생산',status:'approved'},issuedAt=new Date('2026-11-09T14:59:59.000Z');
+ await setSharedQrEnabled(ctx.env,admin,true,issuedAt);
+ const qr=await issueSharedQr(ctx.env,admin,'https://factorypass.pages.dev',issuedAt);
+ assert.equal(qr.expiresAt,'2026-11-09T15:00:00.000Z');
+ const claim=await verifySharedQr(ctx.env,user,qr.token,issuedAt);
+ assert.equal(claim.claimExpiresAt,qr.expiresAt);
+ await assert.rejects(()=>confirmSharedAttendance(ctx.env,user,{claimId:claim.claimId,requestId:randomUUID()},new Date('2026-11-09T15:00:00.000Z')),error=>error.status===410);
+ assert.equal(ctx.state.events.length,0);
+});
+
+test('same-day QR expires at midnight and cannot create attendance events on the next Seoul date',async()=>{
+ const ctx=database(),admin={id:1,role:'admin',status:'approved'},user={id:2,role:'employee',name:'근로자 A',employee_no:'FP-A',department:'생산',status:'approved'},issuedAt=new Date('2026-11-09T14:59:59.000Z');
+ await setSharedQrEnabled(ctx.env,admin,true,issuedAt);
+ const qr=await issueSharedQr(ctx.env,admin,'https://factorypass.pages.dev',issuedAt);
+ assert.equal(qr.expiresAt,'2026-11-09T15:00:00.000Z');
+ const claim=await verifySharedQr(ctx.env,user,qr.token,issuedAt);
+ assert.equal(claim.claimExpiresAt,qr.expiresAt);
+ await assert.rejects(()=>confirmSharedAttendance(ctx.env,user,{claimId:claim.claimId,requestId:randomUUID()},new Date('2026-11-09T15:00:00.000Z')),error=>error.status===410);
+ assert.equal(ctx.state.events.length,0);
+});
+
 test('비로그인·다른 역할은 공용 QR verify/confirm에 접근할 수 없다',async()=>{
  const ctx=database();
  await ctx.env.DB.prepare('INSERT INTO sessions(id,user_id,csrf_token,expires_at) VALUES(?,?,?,?)').bind('worker-session',2,'csrf-worker',new Date(Date.now()+60000).toISOString()).run();
@@ -232,14 +255,15 @@ test('비로그인·다른 역할은 공용 QR verify/confirm에 접근할 수 �
 
 test('route와 UI는 관리자 공용 QR, 공용 표시, 로그인 복귀, 최종 확인 API를 연결한다',async()=>{
  const app=await readFile(resolve(root,'app.js'),'utf8'),api=await readFile(resolve(root,'functions/api/[[path]].js'),'utf8');
- assert.match(app,/출퇴근 QR 관리/);
+  assert.match(app,/sharedQrAdmin/);
  assert.doesNotMatch(app,/function kioskPage\(|\/admin\/devices/);
   const start=app.indexOf('async function sharedQrAdmin('),end=app.indexOf('async function settings(',start),adminQr=app.slice(start,end);
   assert.ok(start>=0&&end>start);
-  assert.doesNotMatch(adminQr,/shared-display-open|공용 PC 화면 열기|공용 PC에는|표시 키|display-key|attendance-display|window\.open/);
+  assert.doesNotMatch(adminQr,/shared-display-open|display-key|attendance-display|window\.open/);
   assert.match(adminQr,/\/admin\/shared-qr\/issue/);
   assert.match(adminQr,/new QRCode\(/);
-  assert.match(adminQr,/setInterval\(tick,250\)/);
+  assert.match(adminQr,/setTimeout\(tick/);
+ assert.match(adminQr,/Asia\/Seoul/);
  assert.match(app,/crypto\.randomUUID/);
  assert.match(api,/requireRole\(request,env,'admin'\)/);
  assert.doesNotMatch(api,/attendance-display\/issue|\/admin\/devices|qr_devices|qr_device_usage_logs|isDeviceCodeConflict/);

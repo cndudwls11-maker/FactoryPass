@@ -43,7 +43,8 @@ test('단말기 관리·독립 키오스크와 공용 PC 표시 키 안내는 �
  assert.doesNotMatch(adminQr,/shared-display-open|공용 PC 화면 열기|공용 PC에는|표시 키|display-key|attendance-display|window\.open/);
  assert.match(adminQr,/\/admin\/shared-qr\/issue/);
  assert.match(adminQr,/new QRCode\(/);
- assert.match(adminQr,/setInterval\(tick,250\)/);
+ assert.match(adminQr,/setTimeout\(tick/);
+ assert.match(adminQr,/setTimeout\(async\(\)=>\{timer=null;if\(enabled\)/);
  assert.match(app,/async function employeeVerifyPage\(/);
  assert.match(app,/path==='\/employee\/verify'/);
 });
@@ -63,16 +64,29 @@ test('관리자 공용 QR API는 관리자 인증과 CSRF 보호를 유지한다
  assert.ok(handle.includes('assertCsrf(request,u)'),'admin mutations must retain CSRF validation');
 });
 
-test('관리자 화면에서 공용 QR을 직접 표시하고 30초 정책을 따른다',()=>{
+test('관리자 화면에서 공용 QR을 직접 표시하고 한국 시간 자정 갱신을 따른다',()=>{
  const start=app.indexOf('async function sharedQrAdmin(');
  const end=app.indexOf('async function settings(',start);
  const adminQr=app.slice(start,end);
  assert.ok(start>=0&&end>start);
  assert.match(adminQr,/\/admin\/shared-qr\/issue/);
  assert.match(adminQr,/new QRCode\(/);
- assert.match(adminQr,/30초/);
+ assert.match(adminQr,/한국 시간 자정에 갱신/);
+ assert.match(adminQr,/23:59:59까지 유효/);
  assert.match(adminQr,/expiresAt/);
  assert.match(adminQr,/clearDisplay/);
+ assert.match(adminQr,/Asia\/Seoul/);
+ assert.match(adminQr,/setTimeout\(tick/);
+ assert.match(adminQr,/setTimeout\(async\(\)=>\{timer=null;if\(enabled\)/);
+});
+
+test('환경설정에는 공용 QR 인증 정책 패널이 없고 나머지 설정은 유지된다',()=>{
+ const start=app.indexOf('async function settings('),end=app.indexOf('async function employeeHome(',start),settings=app.slice(start,end);
+ assert.ok(start>=0&&end>start);
+ assert.doesNotMatch(settings,/공용 QR 인증 정책|관리자 발급형 회사 공용 QR/);
+ assert.match(settings,/id="company-form"/);
+ assert.match(settings,/id="new-dept"/);
+ assert.match(settings,/id="password-form"/);
 });
 
 test('모바일 공용 QR 인증 페이지는 로그인 복귀와 최종 확인 저장을 지원한다',()=>{

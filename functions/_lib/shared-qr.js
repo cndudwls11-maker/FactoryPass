@@ -4,16 +4,19 @@ import {seoulDate} from './attendance.js';
 const TOKEN_PATTERN=/^[a-f\d]{64}$/i;
 const REQUEST_PATTERN=/^[a-f\d-]{36}$/i;
 const CLAIM_ID_PATTERN=/^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i;
-const QR_TTL_SECONDS=30;
+const DISPLAY_QR_TTL_SECONDS=30;
+const SEOUL_DAY_MILLISECONDS=24*60*60*1000;
 const CLAIM_TTL_SECONDS=60;
 const DISPLAY_KEY_TTL_SECONDS=30*24*60*60;
 
 function randomId(){return crypto.randomUUID()}
 function isUniqueError(error){return /UNIQUE constraint failed|constraint failed/i.test(String(error?.message||error))}
+function nextSeoulMidnight(date){const day=seoulDate(date);return new Date(new Date(`${day}T00:00:00+09:00`).getTime()+SEOUL_DAY_MILLISECONDS)}
+function secondsUntilSeoulMidnight(date){return Math.max(1,Math.ceil((nextSeoulMidnight(date).getTime()-date.getTime())/1000))}
 
 export async function sharedQrStatus(env){
  const control=await env.DB.prepare('SELECT enabled,generation,updated_at FROM shared_qr_control WHERE id=1').first();
- return{enabled:control?.enabled===1,generation:control?.generation||0,updatedAt:control?.updated_at||null,rotationSeconds:QR_TTL_SECONDS}
+ return{enabled:control?.enabled===1,generation:control?.generation||0,updatedAt:control?.updated_at||null,rotationSeconds:secondsUntilSeoulMidnight(new Date())}
 }
 
 export async function setSharedQrEnabled(env,admin,enabled,now=new Date()){
@@ -35,10 +38,10 @@ export async function issueDisplayQr(env,key,origin,now=new Date()){
  const row=await env.DB.prepare(`SELECT id FROM shared_qr_display_keys WHERE key_hash=? AND revoked_at IS NULL AND expires_at>?`).bind(await digest(key),now.toISOString()).first();
  if(!row)throw new HttpError(401,'공용 화면 표시 키가 만료되었거나 폐기되었습니다. 관리자 화면에서 다시 여세요.');
  const status=await sharedQrStatus(env);if(!status.enabled)throw new HttpError(423,'회사 공용 QR이 중지되었습니다.');
- const token=await randomToken(32),tokenHash=await digest(token),id=randomId(),issuedAt=now.toISOString(),expiresAt=new Date(now.getTime()+QR_TTL_SECONDS*1000).toISOString();
+ const token=await randomToken(32),tokenHash=await digest(token),id=randomId(),issuedAt=now.toISOString(),expiresAt=new Date(now.getTime()+DISPLAY_QR_TTL_SECONDS*1000).toISOString();
  const result=await env.DB.prepare(`INSERT INTO shared_qr_sessions(id,token_hash,generation,issued_at,expires_at,created_by) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM shared_qr_display_keys k JOIN shared_qr_control c ON c.id=1 WHERE k.id=? AND k.revoked_at IS NULL AND k.expires_at>? AND c.enabled=1 AND c.generation=?)`).bind(id,tokenHash,status.generation,issuedAt,expiresAt,row.id,row.id,now.toISOString(),status.generation).run();
  if(!result.meta?.changes)throw new HttpError(423,'표시 키가 폐기되었거나 공용 QR이 중지되었습니다. 관리자 화면에서 다시 여세요.');
- return{sessionId:id,token,issuedAt,expiresAt,rotationSeconds:QR_TTL_SECONDS,verifyUrl:`${origin}/employee/verify#t=${token}`}
+ return{sessionId:id,token,issuedAt,expiresAt,rotationSeconds:DISPLAY_QR_TTL_SECONDS,verifyUrl:`${origin}/employee/verify#t=${token}`}
 }
 
 export async function revokeDisplayKeys(env,admin,now=new Date()){
@@ -51,10 +54,10 @@ export async function issueSharedQr(env,admin,origin,now=new Date()){
  const status=await sharedQrStatus(env);
  if(!status.enabled)throw new HttpError(423,'회사 공용 QR이 중지되었습니다. 관리자에게 문의하세요.');
  const token=await randomToken(32),tokenHash=await digest(token),id=randomId();
- const issuedAt=now.toISOString(),expiresAt=new Date(now.getTime()+QR_TTL_SECONDS*1000).toISOString();
+ const issuedAt=now.toISOString(),expiresAt=nextSeoulMidnight(now).toISOString();
  const result=await env.DB.prepare(`INSERT INTO shared_qr_sessions(id,token_hash,generation,issued_at,expires_at,created_by) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM shared_qr_control WHERE id=1 AND enabled=1 AND generation=?)`).bind(id,tokenHash,status.generation,issuedAt,expiresAt,admin.id,status.generation).run();
  if(!result.meta?.changes)throw new HttpError(423,'회사 공용 QR이 중지되거나 갱신되었습니다. 다시 시도해 주세요.');
- return{sessionId:id,token,issuedAt,expiresAt,rotationSeconds:QR_TTL_SECONDS,verifyUrl:`${origin}/employee/verify#t=${token}`}
+ return{sessionId:id,token,issuedAt,expiresAt,rotationSeconds:secondsUntilSeoulMidnight(now),verifyUrl:`${origin}/employee/verify#t=${token}`}
 }
 
 async function findSession(env,token){
@@ -78,13 +81,13 @@ function nextType(event){return event?.event_type==='in'?'out':'in'}
 export async function verifySharedQr(env,user,token,now=new Date()){
  if(user.role!=='employee'||user.status!=='approved')throw new HttpError(403,'승인된 근로자만 공용 QR을 인증할 수 있습니다.');
  const session=await findSession(env,token),timestamp=now.toISOString();
- if(Date.parse(session.expires_at)<=now.getTime())throw new HttpError(410,'공용 QR이 만료되었습니다. 회사 공용 PC에서 새 QR을 촬영해 주세요.');
+ if(seoulDate(new Date(session.issued_at))!==seoulDate(now)||Date.parse(session.expires_at)<=now.getTime())throw new HttpError(410,'공용 QR이 만료되었습니다. 회사 출퇴근 장소에서 새 QR을 촬영해 주세요.');
  const existing=await env.DB.prepare(`SELECT id,session_id,generation,claimed_at,expires_at,used_at FROM shared_qr_claims WHERE user_id=? AND used_at IS NULL AND expires_at>? ORDER BY claimed_at DESC LIMIT 1`).bind(user.id,timestamp).first();
  let claim=existing;
  if(claim){
   if(claim.session_id!==session.id)throw new HttpError(409,'이미 다른 QR 인증을 진행 중입니다. 기존 확인을 완료하거나 QR을 다시 촬영해 주세요.');
  }else{
-  const id=randomId(),expiresAt=new Date(Math.min(now.getTime()+CLAIM_TTL_SECONDS*1000,Date.parse(session.expires_at)+CLAIM_TTL_SECONDS*1000)).toISOString();
+  const id=randomId(),expiresAt=new Date(Math.min(now.getTime()+CLAIM_TTL_SECONDS*1000,Date.parse(session.expires_at))).toISOString();
   try{
    const result=await env.DB.prepare(`INSERT INTO shared_qr_claims(id,session_id,user_id,generation,claimed_at,expires_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM shared_qr_sessions s JOIN shared_qr_control c ON c.id=1 WHERE s.id=? AND s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at>? AND c.enabled=1 AND c.generation=s.generation) ON CONFLICT(user_id) WHERE used_at IS NULL DO NOTHING`).bind(id,session.id,user.id,session.generation,timestamp,expiresAt,session.id,await digest(token),timestamp).run();
    if(!result.meta?.changes){const existingClaim=await env.DB.prepare(`SELECT id,session_id,generation,claimed_at,expires_at,used_at FROM shared_qr_claims WHERE user_id=? AND used_at IS NULL AND expires_at>?`).bind(user.id,timestamp).first();if(!existingClaim)throw new HttpError(410,'공용 QR이 만료되었거나 중지되었습니다. 새 QR을 촬영해 주세요.');if(existingClaim.session_id!==session.id)throw new HttpError(409,'이미 다른 QR 인증을 진행 중입니다. 기존 확인을 완료하거나 QR을 다시 촬영해 주세요.');claim=existingClaim}else claim={id,session_id:session.id,generation:session.generation,claimed_at:timestamp,expires_at:expiresAt,used_at:null}
@@ -102,7 +105,7 @@ export async function confirmSharedAttendance(env,user,{claimId,requestId},now=n
  if(!claim)throw new HttpError(404,'인증 요청을 찾을 수 없습니다. QR을 다시 촬영해 주세요.');
  if(claim.enabled!==1||claim.revoked_at||claim.generation!==claim.current_generation||claim.session_generation!==claim.current_generation)throw new HttpError(423,'회사 공용 QR이 중지되거나 인증 요청이 취소되었습니다.');
  if(claim.used_at)throw new HttpError(409,'이미 처리된 인증 요청입니다.');
- if(Date.parse(claim.expires_at)<=now.getTime())throw new HttpError(410,'출퇴근 확인 유예시간이 만료되었습니다. 회사 공용 PC에서 QR을 다시 촬영해 주세요.');
+ if(Date.parse(claim.expires_at)<=now.getTime()||seoulDate(new Date(claim.claimed_at))!==seoulDate(now))throw new HttpError(410,'출퇴근 확인 유예시간이 만료되었습니다. 회사 출퇴근 장소에서 QR을 다시 촬영해 주세요.');
  const timestamp=now.toISOString(),workDate=seoulDate(now);
  try{
   const results=await env.DB.batch([
