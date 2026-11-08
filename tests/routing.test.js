@@ -74,6 +74,28 @@ test('모바일 QR 인증 페이지는 로그인 후 안전한 fragment 경로�
  assert.doesNotMatch(app,/\/employee\/qr\/confirm/);
 });
 
+test('모바일 QR 확인 버튼은 클릭 시 확인 화면을 표시하고 완료 상태를 알린다',()=>{
+ const start=app.indexOf('async function employeeVerifyPage(');
+ const end=app.indexOf('async function boot(',start);
+ const verify=app.slice(start,end);
+ assert.ok(start>=0&&end>start);
+ assert.match(verify,/confirm\.addEventListener\('click'/);
+ assert.match(verify,/출퇴근 확인 화면이 열렸습니다/);
+ assert.match(verify,/출퇴근 확인 완료/);
+ assert.match(verify,/aria-live="polite"/);
+ assert.doesNotMatch(verify,/\/employee\/qr\/confirm/);
+});
+
+test('모바일 QR 인증 오류는 만료·없는 토큰·계정 불일치를 구분해 재발급/로그인 안내를 표시한다',()=>{
+ const start=app.indexOf('async function employeeVerifyPage(');
+ const end=app.indexOf('async function boot(',start);
+ const verify=app.slice(start,end);
+ assert.match(verify,/error\.status===410\?'QR이 만료되었습니다/);
+ assert.match(verify,/error\.status===404\?'QR을 확인할 수 없습니다/);
+ assert.match(verify,/error\.status===403\?'로그인 계정이 QR 발급자와 다르거나/);
+ assert.match(verify,/JSON\.stringify\(\{token\}\)/);
+});
+
 test('이전 QR 스캐너 코드는 보존되고 직접 URL은 관리자 안내 화면을 사용한다',()=>{
  assert.match(app,/async function legacyCameraScanner\(/);
  assert.match(app,/function scanner\(v\)/);
