@@ -18,3 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
 CREATE TABLE IF NOT EXISTS login_attempts (identity TEXT NOT NULL, ip TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, window_start INTEGER NOT NULL, PRIMARY KEY(identity,ip));
 INSERT OR IGNORE INTO settings(key,value) VALUES ('company_name','우리 회사'),('default_start_time','09:00'),('default_end_time','18:00'),('grace_minutes','5');
 INSERT OR IGNORE INTO work_schedules(scope,target,start_time,end_time,grace_minutes,weekdays) VALUES ('default','','09:00','18:00',5,'1,2,3,4,5');
+CREATE TABLE IF NOT EXISTS qr_devices (id INTEGER PRIMARY KEY AUTOINCREMENT, device_code TEXT NOT NULL COLLATE NOCASE UNIQUE, name TEXT NOT NULL, location TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'disabled' CHECK(status IN ('active','disabled')), created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')), updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
+CREATE INDEX IF NOT EXISTS idx_qr_devices_status ON qr_devices(status);
+CREATE TABLE IF NOT EXISTS qr_device_usage_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, device_id INTEGER NOT NULL REFERENCES qr_devices(id) ON DELETE CASCADE, used_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')), activity TEXT NOT NULL CHECK(activity IN ('scan','heartbeat')), outcome TEXT NOT NULL CHECK(outcome IN ('success','failure')), employee_id INTEGER REFERENCES users(id) ON DELETE SET NULL);
+CREATE INDEX IF NOT EXISTS idx_qr_device_usage_device_time ON qr_device_usage_logs(device_id,used_at DESC);

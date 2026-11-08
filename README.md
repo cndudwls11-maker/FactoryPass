@@ -59,3 +59,9 @@ Remove-Variable initSecret,adminPassword,plain,body
 - `functions/_middleware.js`: 보안 응답 헤더
 - `schema.sql`, `migrations/0001_initial.sql`: D1 스키마와 초기 migration
 - `wrangler.toml`: Cloudflare Pages/D1 설정 템플릿
+
+## QR 단말기 관리 (운영 데이터 보존)
+
+- 관리자 `/admin/devices`에서 단말기를 등록, 이름/설치 위치 수정, 활성화/비활성화, 실제 사용 로그 조회를 할 수 있습니다. 등록 단말기는 기본 비활성 상태입니다.
+- Migration `0003_device_management.sql`은 `qr_devices`, `qr_device_usage_logs`와 인덱스만 추가합니다. 기존 사용자·근태 데이터는 수정/삭제하지 않습니다. 아직 Kiosk나 단말기 통신 기능은 구현되지 않았으므로 사용 로그는 실제 로그가 쌓이기 전까지 비어 있습니다.
+- 로컬 D1 검증: 먼저 복제한 격리 테스트 DB에 `wrangler d1 migrations apply <test-db> --local --config <test-wrangler.toml>`을 실행하세요. 운영 반영 전 `wrangler d1 migrations list factorypass-db --remote --config wrangler.toml`로 대상 상태를 확인하고, 백업/복구 절차를 준비한 뒤 `wrangler d1 migrations apply factorypass-db --remote --config wrangler.toml`을 승인된 배포 창에서 실행하세요. 파괴적 초기화 명령은 사용하지 마세요.
