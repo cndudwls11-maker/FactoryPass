@@ -21,7 +21,7 @@ test('정적 앱 리소스는 하위 관리자/근로자 URL에서도 루트 절
 test('Pages routing은 API 경로만 Functions에 보내고 정적 UI를 유지한다',async()=>{
  assert.deepEqual(routes.include,['/api/*']);
  assert.deepEqual(routes.exclude,[]);
- assert.match(await readFile(resolve(root,'wrangler.toml'),'utf8'),/pages_build_output_dir\s*=\s*"\."/);
+ assert.match(await readFile(resolve(root,'wrangler.toml'),'utf8'),/pages_build_output_dir\s*=\s*"dist"/);
 });
 
 test('관리자 sidebar에 공용 QR과 기존 운영 메뉴가 표시된다',()=>{

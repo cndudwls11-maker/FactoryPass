@@ -82,6 +82,8 @@ export async function verifySharedQr(env,user,token,now=new Date()){
  if(user.role!=='employee'||user.status!=='approved')throw new HttpError(403,'승인된 근로자만 공용 QR을 인증할 수 있습니다.');
  const session=await findSession(env,token),timestamp=now.toISOString();
  if(seoulDate(new Date(session.issued_at))!==seoulDate(now)||Date.parse(session.expires_at)<=now.getTime())throw new HttpError(410,'공용 QR이 만료되었습니다. 회사 출퇴근 장소에서 새 QR을 촬영해 주세요.');
+ // Resolve abandoned claims before inserting a new one under the active-user unique index.
+ await env.DB.prepare(`UPDATE shared_qr_claims SET used_at=? WHERE user_id=? AND used_at IS NULL AND (expires_at<=? OR generation<>? OR EXISTS(SELECT 1 FROM shared_qr_sessions s WHERE s.id=shared_qr_claims.session_id AND s.revoked_at IS NOT NULL))`).bind(timestamp,user.id,timestamp,session.generation).run();
  const existing=await env.DB.prepare(`SELECT id,session_id,generation,claimed_at,expires_at,used_at FROM shared_qr_claims WHERE user_id=? AND used_at IS NULL AND expires_at>? ORDER BY claimed_at DESC LIMIT 1`).bind(user.id,timestamp).first();
  let claim=existing;
  if(claim){
@@ -101,7 +103,7 @@ export async function confirmSharedAttendance(env,user,{claimId,requestId},now=n
  if(user.role!=='employee'||user.status!=='approved')throw new HttpError(403,'승인된 근로자만 출퇴근을 인증할 수 있습니다.');
  if(typeof claimId!=='string'||!CLAIM_ID_PATTERN.test(claimId))throw new HttpError(400,'인증 정보가 올바르지 않습니다. QR을 다시 촬영해 주세요.');
  if(typeof requestId!=='string'||!REQUEST_PATTERN.test(requestId))throw new HttpError(400,'요청 식별 정보가 올바르지 않습니다. 다시 시도해 주세요.');
- const claim=await env.DB.prepare(`SELECT c.id,c.session_id,c.generation,c.expires_at,c.used_at,s.revoked_at,s.generation session_generation,q.enabled,q.generation current_generation FROM shared_qr_claims c JOIN shared_qr_sessions s ON s.id=c.session_id JOIN shared_qr_control q ON q.id=1 WHERE c.id=? AND c.user_id=?`).bind(claimId,user.id).first();
+ const claim=await env.DB.prepare(`SELECT c.id,c.session_id,c.generation,c.claimed_at,c.expires_at,c.used_at,s.revoked_at,s.generation session_generation,q.enabled,q.generation current_generation FROM shared_qr_claims c JOIN shared_qr_sessions s ON s.id=c.session_id JOIN shared_qr_control q ON q.id=1 WHERE c.id=? AND c.user_id=?`).bind(claimId,user.id).first();
  if(!claim)throw new HttpError(404,'인증 요청을 찾을 수 없습니다. QR을 다시 촬영해 주세요.');
  if(claim.enabled!==1||claim.revoked_at||claim.generation!==claim.current_generation||claim.session_generation!==claim.current_generation)throw new HttpError(423,'회사 공용 QR이 중지되거나 인증 요청이 취소되었습니다.');
  if(claim.used_at)throw new HttpError(409,'이미 처리된 인증 요청입니다.');

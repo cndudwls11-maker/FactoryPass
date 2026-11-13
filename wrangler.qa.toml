@@ -1,0 +1,11 @@
+name = "factorypass-local-qa"
+compatibility_date = "2026-11-07"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "factorypass-isolated-qa"
+database_id = "00000000-0000-4000-8000-000000000001"
+
+[vars]
+APP_TIMEZONE = "Asia/Seoul"

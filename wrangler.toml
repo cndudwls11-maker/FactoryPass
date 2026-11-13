@@ -1,6 +1,6 @@
 name = "factorypass"
 compatibility_date = "2026-11-07"
-pages_build_output_dir = "."
+pages_build_output_dir = "dist"
 
 [[d1_databases]]
 binding = "DB"

@@ -12,3 +12,5 @@
 .env.*
 !.env.example
 .wrangler/
+node_modules/
+dist/

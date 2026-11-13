@@ -22,6 +22,11 @@ function database(){
  });
 
  async function execute(sql,v,mode){
+  if(sql.startsWith('UPDATE shared_qr_claims SET used_at=? WHERE user_id=?')){
+   const [resolvedAt,userId,cutoff,generation]=v;let changes=0;
+   for(const claim of state.claims){const session=state.sessions.find(s=>s.id===claim.session_id);if(claim.user_id===userId&&!claim.used_at&&(claim.expires_at<=cutoff||claim.generation!==generation||session?.revoked_at)){claim.used_at=resolvedAt;changes++;}}
+   return{changes};
+  }
   if(sql.startsWith('UPDATE shared_qr_control')){
    state.control={id:1,enabled:v[0],generation:state.control.generation+1,updated_by:v[1],updated_at:v[2]};
    state.sessions=state.sessions.map(x=>({...x,revoked_at:v[2]}));
