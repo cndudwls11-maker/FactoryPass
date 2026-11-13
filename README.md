@@ -66,7 +66,7 @@ Remove-Variable initSecret,adminPassword,plain,body
 - 현재 운영에서는 별도 QR 인증 단말기 등록/관리와 독립 키오스크를 사용하지 않습니다. 관리자 UI와 API에서는 단말기 관리 기능을 제공하지 않습니다. 공용 QR의 선택적 화면 표시는 `/admin/shared-qr`에서만 시작하며, 별도 단말기 등록이나 인증 기능을 제공하지 않습니다.
 - 과거 배포 환경에 적용됐을 수 있는 migration `0003_device_management.sql`과 `qr_devices`, `qr_device_usage_logs` 테이블은 데이터 보존을 위해 유지합니다. 이번 코드 정리에서는 해당 migration이나 데이터를 수정·삭제하지 않습니다.
 - 개인 QR 및 공용 표시 키의 과거 데이터 구조도 보존합니다. 기존 `qr_tokens`와 `shared_qr_display_keys`를 임의로 삭제하거나 데이터를 정리하는 migration은 포함하지 않습니다. 공용 표시 키의 기존 도메인 로직은 데이터 호환성을 위해 보존하지만, 별도 표시 화면/키 발급 API는 현재 운영 UI에서 사용하지 않습니다.
-- 로컬 D1 검증은 별도 격리 DB에서 실행하세요. 운영 D1 상태 확인/백업/복구는 승인된 운영 절차를 따르며, 이번 코드 정리에는 D1 변경이나 배포가 포함되지 않습니다.
+- 로컬 D1 검증은 별도 격리 DB에서 실행하세요. 운영 D1 상태 확인/백업/복구는 승인된 운영 절차를 따르며, 이번 개선에서는 운영 D1 데이터를 변경하지 않습니다.
 ## 검색·공유·분석 설정
 
 `site.config.mjs`에 18개 경로의 타이틀과 설명을 관리합니다. 빌드가 canonical, Open Graph, Twitter 공유 정보를 HTML에 기록하고 홈페이지 본문을 미리 렌더링합니다. 검색용 sitemap에는 공개 소개 화면인 `/`만 포함합니다. 로그인·가입·직원·관리자·미확정 안내 문서는 noindex입니다. `robots.txt`, `sitemap.xml`, 기존 Google 확인 파일을 유지하세요.
