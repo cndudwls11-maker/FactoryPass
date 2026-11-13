@@ -1,5 +1,18 @@
 {
   "version": 1,
-  "include": ["/api/*"],
+  "include": [
+    "/api/*",
+    "/schema.sql",
+    "/migrations/*",
+    "/tests/*",
+    "/scripts/*",
+    "/analytics/*",
+    "/wrangler.toml",
+    "/package.json",
+    "/package-lock.json",
+    "/README.md",
+    "/site.config.mjs",
+    "/tracking.config.json"
+  ],
   "exclude": []
 }

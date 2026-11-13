@@ -18,10 +18,25 @@ test('정적 앱 리소스는 하위 관리자/근로자 URL에서도 루트 절
  }
 });
 
-test('Pages routing은 API 경로만 Functions에 보내고 정적 UI를 유지한다',async()=>{
- assert.deepEqual(routes.include,['/api/*']);
+test('Pages routing은 API와 비공개 소스 경로만 Functions에 보내고 정적 UI를 유지한다',async()=>{
+ assert.ok(routes.include.includes('/api/*'));
+ assert.ok(routes.include.includes('/schema.sql'));
+ assert.ok(!routes.include.includes('/*'));
  assert.deepEqual(routes.exclude,[]);
  assert.match(await readFile(resolve(root,'wrangler.toml'),'utf8'),/pages_build_output_dir\s*=\s*"dist"/);
+});
+
+test('제거된 소스 파일의 Pages 잔존 캐시를 미들웨어에서 차단한다',async()=>{
+ const {onRequest}=await import('../functions/_middleware.js');
+ for(const path of ['/schema.sql','/migrations/0004_shared_attendance_qr.sql','/tests/signup.test.js','/wrangler.toml']){
+  const response=await onRequest({request:new Request('https://factorypass.pages.dev'+path),next:()=>{throw new Error('Private asset must not reach static cache')}});
+  assert.equal(response.status,404);
+  assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.equal(await response.text(),'Not found');
+ }
+ const response=await onRequest({request:new Request('https://factorypass.pages.dev/api/auth/me'),next:()=>new Response('{"error":"Unauthorized"}',{status:401,headers:{'content-type':'application/json'}})});
+ assert.equal(response.status,401);
+ assert.match(await response.text(),/Unauthorized/);
 });
 
 test('관리자 sidebar에 공용 QR과 기존 운영 메뉴가 표시된다',()=>{

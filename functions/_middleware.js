@@ -1,5 +1,9 @@
 export async function onRequest(context) {
-  const response = await context.next(),
+  // Pages may retain a removed static asset at an edge for up to a week.
+  // The routing allowlist sends private source paths here to override that cache.
+  const response = new URL(context.request.url).pathname.startsWith('/api/')
+      ? await context.next()
+      : new Response('Not found', { status: 404 }),
     headers = new Headers(response.headers);
   headers.set('X-Frame-Options', 'DENY');
   headers.set('X-Content-Type-Options', 'nosniff');
