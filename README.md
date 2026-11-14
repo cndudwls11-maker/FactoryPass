@@ -75,8 +75,10 @@ FactoryPass의 화면은 HTML, CSS, JavaScript로 구성하고, 서버 API는 Cl
 ```powershell
 npm install -g wrangler
 wrangler d1 migrations apply factorypass-db --local
-wrangler pages dev . --d1 DB=factorypass-db
+npm run dev
 ```
+
+`npm run dev`는 빌드 산출물을 `dist/`에서 제공하고 포트 8788에서 실행합니다. 개발 의존성 설치가 필요하면 `npm install`을 먼저 실행하세요. 기본 Wrangler 실행 설정은 `wrangler.toml`의 D1 바인딩을 사용합니다.
 
 카메라 기능은 브라우저 보안 정책에 따라 localhost 또는 HTTPS에서만 사용할 수 있습니다. `index.html`을 파일로 직접 열면 API와 데이터 저장이 동작하지 않으며, D1 바인딩이 없으면 API는 503을 반환합니다. 로컬 D1 검증에 운영 데이터베이스를 사용하지 마세요.
 
