@@ -73,12 +73,13 @@ FactoryPass의 화면은 HTML, CSS, JavaScript로 구성하고, 서버 API는 Cl
 로컬에서는 Wrangler Pages 개발 서버와 별도의 격리된 D1 데이터베이스를 사용해 화면과 API를 함께 실행합니다. 저장소 루트에서 의존 도구를 설치하고 로컬 migration을 적용한 다음 Pages 개발 서버를 시작하세요.
 
 ```powershell
-npm install -g wrangler
-wrangler d1 migrations apply factorypass-db --local
+npm install
+npm run build
+wrangler d1 migrations apply factorypass-db --local --config wrangler.qa.toml
 npm run dev
 ```
 
-`npm run dev`는 빌드 산출물을 `dist/`에서 제공하고 포트 8788에서 실행합니다. 개발 의존성 설치가 필요하면 `npm install`을 먼저 실행하세요. 기본 Wrangler 실행 설정은 `wrangler.toml`의 D1 바인딩을 사용합니다.
+`npm run dev`는 `dist/` 산출물을 포트 8788에서 실행하며 격리된 QA용 D1 설정을 사용합니다. 로컬 검증에는 운영 데이터베이스 대신 `wrangler.qa.toml`을 사용하고, 개발 서버에서 사용하는 D1 바인딩과 이름을 migration 명령에서도 일치시키세요.
 
 카메라 기능은 브라우저 보안 정책에 따라 localhost 또는 HTTPS에서만 사용할 수 있습니다. `index.html`을 파일로 직접 열면 API와 데이터 저장이 동작하지 않으며, D1 바인딩이 없으면 API는 503을 반환합니다. 로컬 D1 검증에 운영 데이터베이스를 사용하지 마세요.
 
