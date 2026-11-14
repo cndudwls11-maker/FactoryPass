@@ -74,12 +74,17 @@ for (const [path, [title, description]] of Object.entries(pages)) {
   const indexable = path === '/',
     url = origin + (path === '/' ? '/' : path),
     image = origin + '/assets/social/factorypass.png';
+  const websiteSchema =
+    path === '/'
+      ? '<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"FactoryPass","url":"https://factorypass.pages.dev/"}</script>'
+      : '';
   const meta = `<link rel="canonical" href="${url}">
 <meta name="robots" content="${indexable ? 'index,follow,max-image-preview:large' : 'noindex,follow'}">
 <meta property="og:type" content="website"><meta property="og:locale" content="ko_KR"><meta property="og:site_name" content="FactoryPass">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${url}">
 <meta property="og:image" content="${image}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="FactoryPass QR 출퇴근·스마트 근태관리">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(description)}"><meta name="twitter:image" content="${image}">`;
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(description)}"><meta name="twitter:image" content="${image}">
+${websiteSchema}`;
   let html = template
     .replace(/<title>.*?<\/title>/, `<title>${esc(title)}</title>`)
     .replace(
@@ -102,7 +107,10 @@ const error = template
     /<title>.*?<\/title>/,
     '<title>페이지를 찾을 수 없습니다 | FactoryPass</title>',
   )
-  .replace('<!-- page-meta -->', '<meta name="robots" content="noindex">')
+  .replace(
+    '<!-- page-meta -->',
+    '<meta name="robots" content="noindex"><meta property="og:site_name" content="FactoryPass">',
+  )
   .replace(
     /<!-- app-content -->[\s\S]*?<!-- \/app-content -->/,
     '<main class="auth-main"><section class="auth-box"><h1>페이지를 찾을 수 없습니다.</h1><a href="/" class="btn btn-primary">홈으로 이동</a></section></main>',

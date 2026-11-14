@@ -308,8 +308,11 @@ test('모든 경로에 서버가 읽을 수 있는 검색·공유 정보가 있�
     for (const field of [
       'og:title',
       'og:description',
+      'og:site_name" content="FactoryPass',
       'og:image',
       'twitter:card',
+      '/assets/favicon.svg',
+      '/assets/favicon-48.png',
     ])
       assert.ok(html.includes(field), path);
     if (path !== '/') assert.ok(html.includes('noindex,follow'), path);
@@ -319,6 +322,21 @@ test('모든 경로에 서버가 읽을 수 있는 검색·공유 정보가 있�
     'utf8',
   );
   assert.ok(home.includes('<h1>QR코드'));
+  assert.match(
+    home,
+    /<script type="application\/ld\+json">\{"@context":"https:\/\/schema\.org","@type":"WebSite","name":"FactoryPass","url":"https:\/\/factorypass\.pages\.dev\/"\}<\/script>/,
+  );
+  const favicon = await readFile(
+    resolve(import.meta.dirname, '../dist/assets/favicon-48.png'),
+  );
+  assert.equal(favicon.readUInt32BE(16), 48);
+  assert.equal(favicon.readUInt32BE(20), 48);
+  const errorPage = await readFile(
+    resolve(import.meta.dirname, '../dist/404.html'),
+    'utf8',
+  );
+  assert.ok(errorPage.includes('og:site_name" content="FactoryPass'));
+  assert.ok(errorPage.includes('/assets/favicon-48.png'));
   assert.ok(!home.includes('fonts.googleapis.com'));
   assert.ok(!home.includes('chart.umd'));
   const robot = await readFile(
