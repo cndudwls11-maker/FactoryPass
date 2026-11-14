@@ -35,7 +35,7 @@
               data.employees
                 .map(
                   (x) =>
-                    `<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.employee_no)}</td><td>${esc(x.department || '—')}</td><td>${esc(x.email || x.username)}</td><td>${shortDate(x.created_at?.slice(0, 10))}</td><td>${badge({ pending: '기존 승인 대기', approved: '활성', disabled: '비활성', rejected: '사용 제한' }[x.status] || x.status)}</td><td><div class="table-actions">${x.status === 'disabled' ? `<button class="small-btn" data-enable="${x.id}">재활성화</button>` : x.status === 'approved' ? `<button class="small-btn" data-disable="${x.id}">비활성화</button>` : ''}<button class="small-btn" data-records="${x.id}">근태</button></div></td></tr>`,
+                    `<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.employee_no)}</td><td>${esc(x.department || '—')}</td><td>${esc(x.email || x.username)}</td><td>${shortDate(x.created_at?.slice(0, 10))}</td><td>${badge({ pending: '기존 승인 대기', approved: '활성', disabled: '비활성', rejected: '사용 제한' }[x.status] || x.status)}</td><td><div class="table-actions">${x.status === 'disabled' ? `<button class="small-btn" data-enable="${x.id}">재활성화</button>` : x.status === 'approved' ? `<button class="small-btn" data-disable="${x.id}">비활성화</button>` : ''}<button class="small-btn" data-records="${x.id}">근태</button><button class="small-btn btn-danger" data-delete="${x.id}" data-name="${esc(x.name)}" data-employee-no="${esc(x.employee_no)}">삭제</button></div></td></tr>`,
                 )
                 .join(''),
             )
@@ -60,12 +60,39 @@
       list.refresh();
     $('#employee-table').addEventListener('click', async (event) => {
       const b = event.target.closest(
-        '[data-disable],[data-enable],[data-records]',
+        '[data-disable],[data-enable],[data-records],[data-delete]',
       );
       if (!b || b.disabled) return;
       if (b.dataset.records) {
         location.href =
           '/admin/attendance?employee=' + encodeURIComponent(b.dataset.records);
+        return;
+      }
+      if (b.dataset.delete) {
+        const dialog = document.createElement('dialog');
+        dialog.className = 'employee-delete-dialog';
+        dialog.setAttribute('aria-labelledby', 'employee-delete-title');
+        dialog.innerHTML = `<form method="dialog"><h2 id="employee-delete-title">직원 계정을 삭제할까요?</h2><p><strong>${esc(b.dataset.name)}</strong> <span class="muted">${esc(b.dataset.employeeNo)}</span></p><p>계정은 비활성화되며 기존 출근·퇴근 기록과 수정 이력은 보존됩니다.</p><div class="dialog-actions"><button class="btn" value="cancel">취소</button><button class="btn btn-primary btn-danger" value="confirm">삭제 확인</button></div></form>`;
+        document.body.append(dialog);
+        const confirmed = await new Promise((resolve) => {
+          dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), { once: true });
+          dialog.addEventListener('cancel', () => resolve(false), { once: true });
+          dialog.showModal();
+        });
+        dialog.remove();
+        if (!confirmed) return;
+        b.disabled = true;
+        try {
+          await api(`/admin/employees/${b.dataset.delete}`, {
+            method: 'DELETE',
+            body: '{}',
+          });
+          toast('직원이 삭제되었습니다. 기존 근태 기록은 보존됩니다.');
+          await list.refresh(list.page);
+        } catch (error) {
+          toast(error.message);
+          b.disabled = false;
+        }
         return;
       }
       b.disabled = true;

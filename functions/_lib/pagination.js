@@ -47,7 +47,7 @@ export async function employeesPage(env, url) {
     throw new HttpError(400, '검색 조건을 확인해 주세요.');
   const like = '%' + query.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
   const where =
-    "role='employee' AND (?='' OR LOWER(name||' '||COALESCE(employee_no,'')||' '||COALESCE(email,'')||' '||COALESCE(username,'')) LIKE ? ESCAPE '\\') AND (?='' OR status=?) AND (?='' OR TRIM(department)=?)";
+    "role='employee' AND status='approved' AND (?='' OR LOWER(name||' '||COALESCE(employee_no,'')||' '||COALESCE(email,'')||' '||COALESCE(username,'')) LIKE ? ESCAPE '\\') AND (?='' OR status=?) AND (?='' OR TRIM(department)=?)";
   const values = [query, like, status, status, department, department];
   const count = await env.DB.prepare(
     'SELECT COUNT(*) total FROM users WHERE ' + where,
@@ -66,7 +66,7 @@ export async function employeesPage(env, url) {
       (pagination.page - 1) * pagination.pageSize,
     ),
     env.DB.prepare(
-      "SELECT DISTINCT TRIM(department) name FROM users WHERE role='employee' AND TRIM(COALESCE(department,''))<>'' ORDER BY name",
+      "SELECT DISTINCT TRIM(department) name FROM users WHERE role='employee' AND status='approved' AND TRIM(COALESCE(department,''))<>'' ORDER BY name",
     ),
   ]);
   return {
