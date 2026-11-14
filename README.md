@@ -1,86 +1,106 @@
 # FactoryPass
 
-QR 코드 기반 단일 회사 스마트 공장 근태관리 서비스입니다. 정적 화면뿐 아니라 Cloudflare Pages Functions와 D1을 이용하는 서버/API 및 SQL 스키마를 포함합니다. 실제 직원 데이터용 운영 전에는 반드시 HTTPS, D1, 관리자 시크릿 설정을 완료하세요.
+FactoryPass는 회사 공용 QR 코드로 출퇴근을 기록하고 관리하는 스마트 근태관리 웹 서비스입니다. Cloudflare Pages Functions와 D1을 사용해 로그인, 권한 확인, 근태 이벤트 저장을 서버에서 처리합니다.
 
-## 들어 있는 구현
+**배포 서비스:** [https://factorypass.pages.dev](https://factorypass.pages.dev)\
+**소스 코드:** [GitHub 저장소](https://github.com/cndudwls11-maker/FactoryPass)
 
-- `/`, `/login`, `/signup`, `/signup-complete` (`/pending`는 이전 북마크용으로 로그인 화면으로 이동)
-- `/admin`, `/admin/employees`, `/admin/shared-qr`, `/admin/attendance`, `/admin/schedules`, `/admin/statistics`, `/admin/settings`
-- `/employee`, `/employee/attendance`, `/employee/profile`, `/employee/verify`
-- 로그인 공통 처리와 서버 측 역할/계정 상태 검증, HttpOnly 세션 쿠키, CSRF 토큰, Cloudflare Workers 호환 PBKDF2-SHA256 비밀번호 해시(100,000회)
-- 근로자 즉시 활성 가입, 관리자 직원 계정 비활성화/재활성화, 관리자 발급형 회사 공용 QR 출퇴근, 직원별 D1 이벤트 기록 및 반복 출퇴근, 조회/통계/CSV, 기록 수정 이력
-- 근로자 스마트폰 카메라를 이용한 공용 QR 인증, QR 표시(qrcodejs), 그래프(Chart.js)
-- 반응형 PC/태블릿/모바일 UI
+## 주요 기능
 
-## Cloudflare 배포 준비
+관리자는 직원과 부서, 근무 일정, 공용 QR, 출퇴근 기록을 한곳에서 관리할 수 있습니다. 관리자 화면에는 대시보드, 직원 관리, 공용 QR, 근태 기록, 일정, 통계, 환경설정 메뉴가 있습니다.
 
-1. Node.js 22 이상을 준비하고 프로젝트에서 `npm ci`, `npm run build`, `npm test`를 실행합니다. Wrangler와 빌드·테스트 도구 버전은 package-lock.json에 고정되어 있습니다.
-2. 기존 D1 데이터베이스 `factorypass-db`를 사용합니다. 설정에는 Database ID `7baf97be-a716-4938-b95d-8b4434df4fff`와 바인딩 `DB`가 지정되어 있습니다. 새 데이터베이스를 만들거나 기존 데이터베이스를 삭제하지 마세요.
-3. D1 migration 정보: 공용 QR 출퇴근의 DB 구조는 `migrations/0004_shared_attendance_qr.sql`에 정의되어 있고, 적용 여부 확인은 운영 변경 절차에 따라 진행합니다. 이 코드 정리 작업에서는 D1 조회·변경이나 migration 적용을 수행하지 않습니다. 로컬 검증은 별도 격리 D1을 사용하며, `schema.sql`은 참고용 전체 스키마입니다.
-4. 최초 관리자 생성용 강력한 일회용 비밀을 Cloudflare Pages Functions secret으로 등록합니다: `wrangler pages secret put INIT_ADMIN_SECRET --project-name factorypass`. Pages 프로젝트 이름이 다르면 실제 이름을 사용하세요. 무작위 32바이트 이상의 값을 안전한 비밀 관리 도구로 생성하고 CLI 입력 프롬프트에만 붙여 넣으세요. 값은 코드/저장소에 입력하지 않습니다.
-5. Cloudflare Pages 프로젝트는 GitHub 저장소 `cndudwls11-maker/FactoryPass`의 `main` 브랜치에 연결하고, Framework preset은 None, Build command는 `npm run build`, Build output directory는 `dist`로 지정합니다. `wrangler.toml`의 `pages_build_output_dir = "dist"`와 일치해야 합니다. 빌드는 공개 자산만 복사하며 SQL·테스트·설정 파일은 배포하지 않습니다. Functions는 저장소 루트의 `functions/`에서 배포됩니다. `_routes.json`은 `/api/*`만 Function에 보내고 나머지 정적 경로는 정적 자산으로 처리합니다.
-6. Cloudflare Dashboard의 Pages > Settings > Functions > D1 database bindings에서 **Production**의 변수 이름 `DB`를 위 D1 데이터베이스에 연결하세요. Preview를 사용할 때에는 별도 테스트 데이터베이스를 연결하고 운영 DB를 공유하지 마세요. 이름은 코드의 `env.DB`와 정확히 같아야 합니다. `APP_TIMEZONE=Asia/Seoul`은 wrangler 설정의 변수입니다. `INIT_ADMIN_SECRET`은 환경 변수로 공개하지 말고 Pages secret으로 설정합니다. Cloudflare Dashboard에서 직접 설정한 bindings/secrets가 배포 환경에 실제 연결됐는지 확인하세요.
-7. HTTPS 배포 후 관리자 계정을 **한 번만** 초기 생성합니다. 브라우저 개발자 도구가 아닌 안전한 운영 터미널에서 아래 명령으로 비밀 입력을 읽어 초기 API에 전송하세요. 비밀번호와 초기 비밀을 명령 인자/셸 기록에 넣지 마세요.
+직원은 계정을 만들고 로그인한 뒤 스마트폰으로 관리자가 발급한 공용 QR을 스캔해 출퇴근을 확인·기록합니다. QR은 30초 동안 유효하며, 기록은 직원별 출퇴근 이벤트로 저장되어 하루 여러 차례의 출근·퇴근도 지원합니다.
+
+서비스는 반응형 PC·태블릿·모바일 화면, 근태 통계와 CSV 내보내기, 근태 수정 이력, 야간 근무 일정 계산을 지원합니다. 과거 개인 QR 발급 기능은 비활성화되어 있으며, 기존 데이터는 호환성과 보존을 위해 유지합니다.
+
+## 기술 구성
+
+FactoryPass의 화면은 HTML, CSS, JavaScript로 구성하고, 서버 API는 Cloudflare Pages Functions에서 실행합니다. Cloudflare D1이 계정·근태 데이터를 저장하며, SQL 스키마와 순차 migration은 `schema.sql`과 `migrations/`에서 관리합니다.
+
+인증에는 서버 측 역할 및 계정 상태 검사, HttpOnly 세션 쿠키, CSRF 토큰, PBKDF2-SHA256 비밀번호 해시를 적용했습니다. QR 토큰은 URL fragment를 사용하고 데이터베이스에는 토큰 해시를 저장합니다.
+
+## 배포 및 운영
+
+서비스는 Cloudflare Pages에서 제공하며 현재 공개 주소는 [factorypass.pages.dev](https://factorypass.pages.dev)입니다. Pages 프로젝트는 GitHub 저장소의 `main` 브랜치에 연결하고, Framework preset은 None, Build command는 비워 두며 Build output directory는 `.`(저장소 루트)로 설정합니다. 정적 파일은 루트에서 제공하고 `functions/`의 API는 Pages Functions로 배포됩니다.
+
+운영 배포에는 Cloudflare D1 데이터베이스와 Pages Functions의 `DB` 바인딩이 필요합니다. Cloudflare Dashboard에서 Production과 Preview 각각에 기존 `factorypass-db` 데이터베이스를 연결하세요. `wrangler.toml`에는 데이터베이스 ID와 `APP_TIMEZONE=Asia/Seoul`이 설정되어 있습니다. 기존 데이터베이스를 새로 만들거나 삭제하지 말고, migration 적용은 승인된 운영 절차를 따르세요.
+
+최초 관리자를 만들기 전에 Pages secret `INIT_ADMIN_SECRET`을 설정하고, HTTPS 도메인에서 관리자 초기화 API를 한 번 호출해야 합니다. 강력한 일회용 비밀을 안전하게 관리하고 코드나 저장소에 기록하지 마세요. 초기화에 성공하면 해당 secret을 제거하거나 교체하고 안전하게 폐기하세요.
+
+실제 직원 데이터를 사용하기 전에는 HTTPS, D1 연결, 관리자 secret, 백업·복구와 데이터 보존 절차를 확인하세요. 운영 환경 설정과 관리자 초기화의 상세 절차는 아래를 참고하세요.
+
+<details>
+<summary>Cloudflare Pages 상세 배포 및 최초 관리자 설정</summary>
+
+1. Node.js LTS를 설치하고 Wrangler를 준비합니다.
+
+   ```powershell
+   npm install -g wrangler
+   wrangler login
+   ```
+
+2. Pages 프로젝트에서 GitHub 저장소 `cndudwls11-maker/FactoryPass`의 `main` 브랜치를 연결합니다. Framework preset은 None, Build command는 비워 두고 Build output directory는 `.`로 설정합니다.
+
+3. Cloudflare Dashboard의 Pages > Settings > Functions > D1 database bindings에서 Production과 Preview 모두 변수 이름 `DB`를 기존 `factorypass-db`에 연결합니다. 이름은 코드의 `env.DB`와 일치해야 합니다.
+
+4. 무작위 32바이트 이상의 일회용 비밀을 안전한 도구로 생성하고, 프롬프트에 입력해 Pages secret으로 등록합니다. 값은 명령 인자나 저장소에 넣지 않습니다.
+
+   ```powershell
+   wrangler pages secret put INIT_ADMIN_SECRET --project-name factorypass
+   ```
+
+   Pages 프로젝트 이름이 다르면 실제 이름을 사용하세요.
+
+5. HTTPS 배포 후 운영 터미널에서 아래 명령을 실행해 초기 관리자 정보를 입력합니다. `YOUR-PAGES-DOMAIN`을 실제 도메인으로 바꾸세요. 비밀번호와 초기 비밀은 명령 인자나 셸 기록에 넣지 마세요.
+
+   ```powershell
+   $initSecret = Read-Host 'INIT_ADMIN_SECRET'
+   $adminName = Read-Host '관리자 표시 이름'
+   $adminId = Read-Host '관리자 아이디 또는 이메일'
+   $adminPassword = Read-Host '14자 이상 관리자 비밀번호' -AsSecureString
+   $plain = [System.Net.NetworkCredential]::new('', $adminPassword).Password
+   $body = @{ name=$adminName; identity=$adminId; password=$plain } | ConvertTo-Json
+   Invoke-RestMethod -Method Post -Uri 'https://YOUR-PAGES-DOMAIN/api/admin/init' -Headers @{ 'X-Init-Secret'=$initSecret } -ContentType 'application/json' -Body $body
+   Remove-Variable initSecret,adminPassword,plain,body
+   ```
+
+   초기화 엔드포인트는 관리자 계정이 이미 있으면 409를 반환합니다. 초기화가 끝나면 `INIT_ADMIN_SECRET`을 제거하거나 교체하고 안전하게 폐기하세요.
+
+</details>
+
+## 로컬 개발
+
+로컬에서는 Wrangler Pages 개발 서버와 별도의 격리된 D1 데이터베이스를 사용해 화면과 API를 함께 실행합니다. 저장소 루트에서 의존 도구를 설치하고 로컬 migration을 적용한 다음 Pages 개발 서버를 시작하세요.
 
 ```powershell
-$initSecret = Read-Host 'INIT_ADMIN_SECRET'
-$adminName = Read-Host '관리자 표시 이름'
-$adminId = Read-Host '관리자 아이디 또는 이메일'
-$adminPassword = Read-Host '14자 이상 관리자 비밀번호' -AsSecureString
-$plain = [System.Net.NetworkCredential]::new('', $adminPassword).Password
-$body = @{ name=$adminName; identity=$adminId; password=$plain } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri 'https://YOUR-PAGES-DOMAIN/api/admin/init' -Headers @{ 'X-Init-Secret'=$initSecret } -ContentType 'application/json' -Body $body
-Remove-Variable initSecret,adminPassword,plain,body
+npm install -g wrangler
+wrangler d1 migrations apply factorypass-db --local
+wrangler pages dev . --d1 DB=factorypass-db
 ```
 
-`YOUR-PAGES-DOMAIN`을 실제 HTTPS 주소로 바꾸세요. 초기화 엔드포인트는 이미 admin이 존재하면 409로 거부합니다. 성공하면 `INIT_ADMIN_SECRET`을 Cloudflare Pages secret에서 제거하거나 교체하고 안전하게 폐기하세요. 운영 셸/프로세스의 메모리·기록 보호는 조직 보안 정책에 따르세요.
+카메라 기능은 브라우저 보안 정책에 따라 localhost 또는 HTTPS에서만 사용할 수 있습니다. `index.html`을 파일로 직접 열면 API와 데이터 저장이 동작하지 않으며, D1 바인딩이 없으면 API는 503을 반환합니다. 로컬 D1 검증에 운영 데이터베이스를 사용하지 마세요.
 
-## 개발/로컬 실행
+## 계정 및 근태 동작
 
-`FactoryPass/` 작업 폴더에서 `wrangler d1 migrations apply factorypass-db --local` 및 `wrangler pages dev . --d1 DB=factorypass-db`를 실행합니다. Pages 배포에서 실제 DB 연결은 Dashboard D1 binding으로 별도 검증하세요. 카메라 API는 localhost 또는 HTTPS에서만 브라우저가 허용합니다. Wrangler/Cloudflare 계정 설정 없이는 브라우저에서 `index.html`만 열어 실제 로그인·저장·스캔이 되지 않습니다. D1 바인딩이 없을 경우 API는 503을 반환하며 UI에서 설정 안내를 보여줍니다.
+신규 직원 계정은 `employee` 역할과 `approved` 상태로 생성되어 가입 후 바로 로그인할 수 있습니다. 관리자는 직원 화면에서 계정을 비활성화하거나 재활성화할 수 있습니다. 이전에 생성된 `pending` 계정은 자동 승인되지 않으며, 별도의 관리자 판단과 지원 절차가 필요합니다.
 
-회원가입은 `employee` 역할과 `approved` 상태로 즉시 생성되어 가입 완료 후 바로 로그인할 수 있습니다. 관리자는 `/admin/employees`에서 계정을 비활성화하거나 재활성화할 수 있습니다. 변경 이전에 가입된 `pending` 상태 사용자는 자동 승인하지 않으며 로그인도 차단된 채로 유지됩니다. 기존 계정은 별도 관리자 판단과 지원 절차로 처리해야 합니다. 부서별 근무 일정을 쓰려면 먼저 환경설정에서 부서를 등록하세요.
+부서별 근무 일정을 설정하려면 먼저 환경설정에서 부서를 등록하세요. 일정에는 야간 근무와 휴무 요일·휴무일을 설정할 수 있습니다. 과거 일정 이후 기록이 없는 직원은 조회에서 결근으로 분류되지만, 정기 자동 결근 기록 생성은 제공하지 않습니다.
 
-## 보안·기능 참고
+관리자는 근태 기록을 수정할 수 있으며, 수정 사유와 수정자, 변경 전후 내용은 `attendance_edit_logs`에 기록됩니다. 공용 QR 인증은 직원 계정으로 로그인한 스마트폰에서 마무리되며, 서버가 세션 상태와 직원 ID, claim 만료, 중복 요청을 검사합니다.
 
-- 신규 비밀번호는 PBKDF2-HMAC-SHA256 100,000회와 128-bit 무작위 salt로 해시되며 저장 형식은 `pbkdf2$반복횟수$salt$digest`입니다. 검증은 저장된 반복 횟수를 사용하고 Cloudflare WebCrypto의 100,000회 상한을 넘는 기존 해시는 안전하게 거절해 비밀번호 재설정이 필요하다고 안내합니다. 기존 `pbkdf2$310000$...` 계정은 자동 변환할 수 없습니다. 기존 해시의 검증에 원래 비밀번호가 필요하지만 런타임이 그 반복 횟수를 거부하기 때문입니다. 해당 계정은 운영자가 별도의 본인 확인 절차로 비밀번호 재설정/초기화해야 합니다. 세션 ID는 HttpOnly/Secure/SameSite=Strict 쿠키에만 보관하며 API는 서버 역할과 계정 상태를 검사합니다.
-- `/admin/shared-qr`에서 관리자가 회사 공용 QR을 활성화·중지하고 관리자 페이지에서 QR을 직접 발급·표시합니다. 관리자 화면의 공용 QR은 발급한 한국 날짜의 자정까지 유효하며 자정에 다시 발급합니다. 별도 공용 PC 표시 화면/키오스크 운영은 사용하지 않으며, QR 인증은 근로자의 로그인된 스마트폰에서 수행합니다.
-- 근로자는 스마트폰으로 공용 QR을 스캔하고 자기 FactoryPass 계정으로 로그인합니다. `/employee/verify`는 QR 세션을 검증하고 UUID claim을 발급해 출근/퇴근 확인 화면을 표시합니다. 근로자가 최종 확인하면 직원별 `attendance_events`와 `attendance_event_state`에 저장되며 하루 여러 차례 출근·퇴근을 허용합니다. QR 토큰은 URL fragment에만 두고 D1에는 토큰 hash를 저장합니다. claim 만료, 세션 상태, 직원 ID 및 중복 요청은 서버에서 검증합니다.
-- 기존 개인 QR 발급·상태 API는 비활성화되어 410을 반환합니다. 저장되어 있는 과거 개인 QR 토큰도 출퇴근 인증에 사용할 수 없으며, `qr_tokens` 테이블과 기존 데이터는 호환성과 보존을 위해 삭제하지 않습니다.
-- 야간 시간대를 일정으로 지원하고 다음 날짜 퇴근 예정 시각을 계산합니다. 스케줄의 휴무 요일 및 휴무일을 체크하며, 과거 일정 종료 후 기록이 없는 사람은 조회 결과에서 결근으로 분류합니다. 아직 정기적인 자동 결근 레코드 생성 작업은 없습니다.
-- 근태 수정은 사유, 수정자, 변경 전후 JSON을 `attendance_edit_logs`에 남깁니다. 사용자 접근 제한은 서버 API에서 강제합니다.
-- 기본 글꼴은 시스템 글꼴이며 QR·차트 라이브러리는 필요한 화면에서 자체 호스팅 파일로 불러옵니다. 오프라인 캐시/PWA, 비밀번호 재설정 메일, 개인정보·약관 실제 법무 문구, 조직별 근무 스케줄 달력 대량 편집, 자동 결근 배치 작업은 구현 범위 밖입니다.
-- 실제 운영 배포 전에 보안 검토(시크릿 회전, 백업/복구, 접근 로그, 데이터 보존 기간, HTTPS 도메인, 개인정보 처리 고지)를 수행하세요. 본 코드는 법률/보안 감사를 대체하지 않습니다.
+## 범위와 보안 참고
 
-## 파일
+독립 키오스크와 QR 단말기 관리, 비밀번호 재설정 메일, 오프라인 PWA, 조직별 일정 대량 편집, 자동 결근 배치 작업은 현재 제공하지 않습니다. 과거 migration과 개인 QR·단말기 관련 데이터는 보존하며, 호환성을 깨뜨릴 수 있는 임의 삭제나 migration을 수행하지 마세요.
+
+신규 비밀번호는 128-bit 무작위 salt와 PBKDF2-HMAC-SHA256 100,000회로 해시합니다. 기존 310,000회 해시는 현재 런타임의 검증 상한을 넘어 자동 변환할 수 없으므로, 해당 계정은 별도의 본인 확인 절차를 거쳐 비밀번호를 재설정해야 합니다.
+
+웹 폰트와 QR·차트 라이브러리는 외부 CDN에서 불러옵니다. 운영 전에는 secret 회전, 접근 로그, 백업·복구, 데이터 보존 기간, 개인정보 고지와 HTTPS 도메인을 검토하세요. 이 프로젝트는 법률 또는 보안 감사를 대체하지 않습니다.
+
+## 프로젝트 파일
 
 - `index.html`, `styles.css`, `app.js`: 반응형 프런트엔드
 - `functions/api/[[path]].js`: Pages Functions API
-- `functions/_lib/`: 인증, 일정, 공용 QR 도메인 로직. `personal-qr.js`는 저장된 과거 개인 QR 토큰을 공용 QR과 구분해 거부하기 위한 호환 코드이며 개인 QR 발급은 비활성화되어 있습니다.
+- `functions/_lib/`: 인증, 일정, 공용 QR 도메인 로직
 - `functions/_middleware.js`: 보안 응답 헤더
-- `schema.sql`, `migrations/0001_initial.sql`: D1 스키마와 초기 migration
-- `wrangler.toml`: Cloudflare Pages/D1 설정 템플릿
-
-## 과거 QR 기능 및 데이터 보존
-
-- 현재 운영에서는 별도 QR 인증 단말기 등록/관리와 독립 키오스크를 사용하지 않습니다. 관리자 UI와 API에서는 단말기 관리 기능을 제공하지 않습니다. 공용 QR의 선택적 화면 표시는 `/admin/shared-qr`에서만 시작하며, 별도 단말기 등록이나 인증 기능을 제공하지 않습니다.
-- 과거 배포 환경에 적용됐을 수 있는 migration `0003_device_management.sql`과 `qr_devices`, `qr_device_usage_logs` 테이블은 데이터 보존을 위해 유지합니다. 이번 코드 정리에서는 해당 migration이나 데이터를 수정·삭제하지 않습니다.
-- 개인 QR 및 공용 표시 키의 과거 데이터 구조도 보존합니다. 기존 `qr_tokens`와 `shared_qr_display_keys`를 임의로 삭제하거나 데이터를 정리하는 migration은 포함하지 않습니다. 공용 표시 키의 기존 도메인 로직은 데이터 호환성을 위해 보존하지만, 별도 표시 화면/키 발급 API는 현재 운영 UI에서 사용하지 않습니다.
-- 로컬 D1 검증은 별도 격리 DB에서 실행하세요. 운영 D1 상태 확인/백업/복구는 승인된 운영 절차를 따르며, 이번 개선에서는 운영 D1 데이터를 변경하지 않습니다.
-## 검색·공유·분석 설정
-
-`site.config.mjs`에 18개 경로의 타이틀과 설명을 관리합니다. 빌드가 canonical, Open Graph, Twitter 공유 정보를 HTML에 기록하고 홈페이지 본문을 미리 렌더링합니다. 검색용 sitemap에는 공개 소개 화면인 `/`만 포함합니다. 로그인·가입·직원·관리자·미확정 안내 문서는 noindex입니다. `robots.txt`, `sitemap.xml`, 기존 Google 확인 파일을 유지하세요.
-
-`tracking.config.json`에는 공개 식별자만 저장합니다. GA4는 `G-CX04312Y8N`, GTM은 `GTM-P6Q2NH5P`입니다. 빌드 환경 변수 `GA_MEASUREMENT_ID`, `GTM_CONTAINER_ID`로 재정의할 수도 있습니다. 둘을 함께 쓰면 GTM만 로드하여 중복 수집을 피합니다. 통계 수집에 동의한 운영 도메인 방문자에게만 태그를 로드합니다. 바닥글의 이용 통계 설정에서 선택을 변경할 수 있습니다.
-
-성공한 로그인은 `login`, QR 확인은 `qr_verified`, 출퇴근 최종 저장은 `attendance_confirmed` 이벤트입니다. 마지막 이벤트는 `attendance_type=in/out`을 포함합니다. 이름·사번·이메일·사용자 ID·QR 토큰을 보내지 않으며, URL의 쿼리와 fragment는 제거하고 형식을 제한한 UTM만 보존합니다. GA4 향상된 자동 측정은 꺼 두고 이 명시적 이벤트를 사용합니다.
-
-`node scripts/create-gtm-container.mjs`로 GTM 가져오기 파일 `analytics/gtm-container.json`을 생성합니다. Google tag 1개, 성공 이벤트 태그 3개, 맞춤 이벤트 트리거 4개, 데이터 영역 변수 4개로 구성합니다. Google tag가 안전한 페이지 주소로 page_view를 한 번 전송하므로 별도 page_view 태그는 추가하지 마세요.
-
-## 목록과 QA
-
-직원·출석부·내 근태 기록은 기본 25행 페이지를 제공하고 직원별 통계 표도 25행씩 표시합니다. 검색과 기간 조회·CSV 대조가 필요한 업무 목록이어서 페이지네이션을 사용합니다. 직원과 내 근태 API는 SQL LIMIT/OFFSET으로 조회하며, 출석부는 기간 내 직원별 최근 기록을 먼저 추린 뒤 상태 계산과 페이지 분할을 수행합니다. 통계 집계는 페이지 크기와 무관하게 유지합니다.
-
-`npm test`는 기존 도메인 테스트와 실제 Workers/D1 격리 통합 테스트, 분석 URL·동의 검증을 실행합니다. 운영 D1을 수정하지 않습니다. UI 검증용 `wrangler.qa.toml`은 운영과 다른 가짜 DB ID를 사용하며 D1 명령에 반드시 `--local`을 지정해야 합니다. Pages dev는 사용자 지정 --config를 지원하지 않으므로, 해당 설정을 별도 QA 폴더의 표준 wrangler.toml로 복사해 사용하세요.
-
-공식 개인정보처리방침·이용약관 게시와 출근율 지표 정의는 GitHub 이슈 #8, #9에서 계속 확인합니다.
+- `schema.sql`, `migrations/`: D1 스키마와 migration
+- `wrangler.toml`: Cloudflare Pages 및 D1 설정 템플릿
